@@ -115,6 +115,9 @@ export interface CompetitorProfile {
   // Freeform custom key-value
   customStats?: { label: string; value: string }[];
   lastSync?: string;
+  // Tracked weekly stats (synced via Firebase)
+  weeklyJournals?: number;
+  sleepScore?: number;  // avg quality 0-5 over last 7 days
 }
 
 export interface PomodoroSession {

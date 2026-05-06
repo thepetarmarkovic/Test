@@ -142,9 +142,12 @@ export default function App() {
             earnings={earnings}
             goals={goals}
             pomodoro={pomodoro}
+            sleep={sleep}
+            journal={journal}
             myName={userName}
             onChange={setCompetitors}
             onUpdateMe={() => {}}
+            onChangeName={name => { setUserName(name); }}
           />
         )}
         {page === 'pomodoro' && (

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Plus, Trash2, Edit2, X, Share2, Copy, Check, Wifi, WifiOff, Settings, Zap, ChevronDown, ChevronUp, Info } from 'lucide-react';
-import type { CompetitorProfile, Habit, EarningEntry, Goal, PomodoroSession } from '../types';
+import { Plus, Trash2, Edit2, X, Share2, Copy, Check, Wifi, WifiOff, Settings, Zap, ChevronDown, ChevronUp, Info, Edit3 } from 'lucide-react';
+import type { CompetitorProfile, Habit, EarningEntry, Goal, PomodoroSession, SleepEntry, JournalEntry } from '../types';
 import { formatCurrency, uid, today, getLast7Days } from '../utils/formatters';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import {
@@ -12,8 +12,44 @@ import {
 const AVATARS = ['⚡', '🔱', '🦅', '🐉', '🏆', '⚔️', '🎯', '💎', '🦁', '🌪️'];
 const medalColors = ['#D4AF37', '#C0C0C0', '#CD7F32'];
 
-const calcPoints = (p: CompetitorProfile) =>
-  p.weeklyHabits * 10 + Math.floor(p.weeklyEarnings / 100) + p.goalsCompleted * 50 + Math.floor(p.focusHours * 5);
+const RANKS = [
+  { label: 'RECRUIT',   min: 0,    color: '#555',    icon: '🎯' },
+  { label: 'HUSTLER',   min: 100,  color: '#FF6B35', icon: '🔥' },
+  { label: 'OPERATOR',  min: 250,  color: '#00D4FF', icon: '⚡' },
+  { label: 'COMMANDER', min: 500,  color: '#7B61FF', icon: '⚔️' },
+  { label: 'WARLORD',   min: 900,  color: '#FF4141', icon: '🦁' },
+  { label: 'EMPEROR',   min: 1500, color: '#D4AF37', icon: '👑' },
+];
+
+const getRank = (pts: number) =>
+  [...RANKS].reverse().find(r => pts >= r.min) || RANKS[0];
+
+const CATEGORIES = [
+  { key: 'habits',   label: 'HABITS',   icon: '🏃', color: '#FF6B35' },
+  { key: 'earnings', label: 'EARNED',   icon: '💰', color: '#00FF87' },
+  { key: 'goals',    label: 'GOALS',    icon: '🎯', color: '#D4AF37' },
+  { key: 'focus',    label: 'FOCUS',    icon: '⏱',  color: '#00D4FF' },
+  { key: 'sleep',    label: 'SLEEP',    icon: '🌙', color: '#7B61FF' },
+  { key: 'journal',  label: 'JOURNAL',  icon: '📓', color: '#FF4141' },
+] as const;
+
+type CategoryKey = typeof CATEGORIES[number]['key'];
+
+interface Breakdown { habits: number; earnings: number; goals: number; focus: number; sleep: number; journal: number }
+
+const calcBreakdown = (p: CompetitorProfile): Breakdown => ({
+  habits:   p.weeklyHabits * 10,
+  earnings: Math.floor(p.weeklyEarnings / 100),
+  goals:    p.goalsCompleted * 50,
+  focus:    Math.floor(p.focusHours * 5),
+  sleep:    Math.floor((p.sleepScore ?? 0) * 15),
+  journal:  (p.weeklyJournals ?? 0) * 15,
+});
+
+const calcPoints = (p: CompetitorProfile): number => {
+  const b = calcBreakdown(p);
+  return b.habits + b.earnings + b.goals + b.focus + b.sleep + b.journal;
+};
 
 function encodeProfile(profile: CompetitorProfile): string {
   return btoa(unescape(encodeURIComponent(JSON.stringify(profile))));
@@ -38,9 +74,12 @@ interface Props {
   earnings: EarningEntry[];
   goals: Goal[];
   pomodoro: PomodoroSession[];
+  sleep: SleepEntry[];
+  journal: JournalEntry[];
   myName: string;
   onChange: (c: CompetitorProfile[]) => void;
   onUpdateMe: (c: CompetitorProfile) => void;
+  onChangeName: (name: string) => void;
 }
 
 const BLANK_CONFIG: FirebaseConfig = {
@@ -117,6 +156,8 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
                 { key: 'weeklyEarnings', label: 'WEEKLY EARNINGS ($)', step: '0.01' },
                 { key: 'goalsCompleted', label: 'GOALS COMPLETED', step: '1' },
                 { key: 'focusHours', label: 'FOCUS HOURS', step: '0.5' },
+                { key: 'weeklyJournals', label: 'JOURNAL ENTRIES', step: '1' },
+                { key: 'sleepScore', label: 'AVG SLEEP QUALITY (0-5)', step: '0.1' },
               ].map(f => (
                 <div key={f.key}>
                   <div className="label-upper" style={{ marginBottom: 6 }}>{f.label}</div>
@@ -147,7 +188,7 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
 
           {/* Schedule */}
           <div>
-            <div style={{ fontSize: 10, color: '#00D4FF', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ SCHEDULE</div>
+            <div style={{ fontSize: 10, color: '#00D4FF', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ SCHEDULE & LIFESTYLE</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <div className="label-upper" style={{ marginBottom: 6 }}>Wake Time</div>
@@ -156,6 +197,33 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
               <div>
                 <div className="label-upper" style={{ marginBottom: 6 }}>Sleep Time</div>
                 <input className="empire-input" type="time" value={data.sleepTime ?? ''} onChange={e => setData(d => ({ ...d, sleepTime: e.target.value }))} />
+              </div>
+              <div>
+                <div className="label-upper" style={{ marginBottom: 6 }}>Current Streak (days)</div>
+                <input className="empire-input" type="number" value={data.currentStreak ?? ''} onChange={e => setData(d => ({ ...d, currentStreak: parseInt(e.target.value) || undefined }))} placeholder="0" />
+              </div>
+              <div>
+                <div className="label-upper" style={{ marginBottom: 6 }}>All-Time Points</div>
+                <input className="empire-input" type="number" value={data.allTimePoints ?? ''} onChange={e => setData(d => ({ ...d, allTimePoints: parseInt(e.target.value) || undefined }))} placeholder="0" />
+              </div>
+            </div>
+          </div>
+
+          {/* Goals & Mindset */}
+          <div>
+            <div style={{ fontSize: 10, color: '#FF6B35', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ MINDSET INTEL</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <div className="label-upper" style={{ marginBottom: 6 }}>Current Goals</div>
+                <input className="empire-input" value={data.currentGoals ?? ''} onChange={e => setData(d => ({ ...d, currentGoals: e.target.value }))} placeholder="What are they chasing?" />
+              </div>
+              <div>
+                <div className="label-upper" style={{ marginBottom: 6 }}>Strengths</div>
+                <input className="empire-input" value={data.strengths ?? ''} onChange={e => setData(d => ({ ...d, strengths: e.target.value }))} placeholder="Their edge..." />
+              </div>
+              <div>
+                <div className="label-upper" style={{ marginBottom: 6 }}>Weaknesses</div>
+                <input className="empire-input" value={data.weaknesses ?? ''} onChange={e => setData(d => ({ ...d, weaknesses: e.target.value }))} placeholder="Where they slip..." />
               </div>
             </div>
           </div>
@@ -184,7 +252,7 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
               className="empire-input"
               value={data.notes ?? ''}
               onChange={e => setData(d => ({ ...d, notes: e.target.value }))}
-              placeholder="Strengths, weaknesses, observations, context..."
+              placeholder="Observations, context, threats, patterns..."
               style={{ resize: 'vertical', minHeight: 80, fontFamily: 'inherit' }}
             />
           </div>
@@ -196,7 +264,7 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
   );
 }
 
-export default function Competition({ competitors, habits, earnings, goals, pomodoro, myName, onChange }: Props) {
+export default function Competition({ competitors, habits, earnings, goals, pomodoro, sleep, journal, myName, onChange, onChangeName }: Props) {
   const [operatorId] = useLocalStorage<string>('empire_operatorId', uid());
   const [fbConfig, setFbConfig] = useLocalStorage<FirebaseConfig>('empire_fbConfig', BLANK_CONFIG);
   const [fbReady, setFbReady] = useState(false);
@@ -218,6 +286,8 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   const [liveStatuses, setLiveStatuses] = useState<Record<string, boolean>>({});
   const [intelRival, setIntelRival] = useState<CompetitorProfile | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showRename, setShowRename] = useState(false);
+  const [renameInput, setRenameInput] = useState('');
   const unsubRefs = useRef<Record<string, () => void>>({});
 
   const last7 = getLast7Days();
@@ -225,11 +295,17 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   const myWeeklyEarnings = earnings.filter(e => last7.includes(e.date)).reduce((s, e) => s + e.amount, 0);
   const myGoalsCompleted = goals.filter(g => g.completed).length;
   const myFocusHours = parseFloat((pomodoro.filter(s => last7.includes(s.date) && s.completed && s.type === 'work').reduce((s, p) => s + p.duration, 0) / 60).toFixed(1));
+  const myWeeklyJournals = journal.filter(j => last7.includes(j.date)).length;
+  const mySleepEntries = sleep.filter(s => last7.includes(s.date));
+  const mySleepScore = mySleepEntries.length > 0
+    ? parseFloat((mySleepEntries.reduce((s, e) => s + e.quality, 0) / mySleepEntries.length).toFixed(2))
+    : 0;
 
   const me: CompetitorProfile = {
     id: operatorId, name: myName || 'YOU', avatar: '🔱',
     weeklyHabits: myWeeklyHabits, weeklyEarnings: myWeeklyEarnings,
     goalsCompleted: myGoalsCompleted, focusHours: myFocusHours,
+    weeklyJournals: myWeeklyJournals, sleepScore: mySleepScore,
     weeklyPoints: 0, achievements: [], isMe: true, lastSync: today(),
   };
   me.weeklyPoints = calcPoints(me);
@@ -244,7 +320,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   useEffect(() => {
     if (!fbReady || !isFirebaseReady()) return;
     publishProfile(operatorId, me).catch(() => {});
-  }, [fbReady, myWeeklyHabits, myWeeklyEarnings, myGoalsCompleted, myFocusHours]);
+  }, [fbReady, myWeeklyHabits, myWeeklyEarnings, myGoalsCompleted, myFocusHours, myWeeklyJournals, mySleepScore]);
 
   const competitorsRef = useRef(competitors);
   competitorsRef.current = competitors;
@@ -374,7 +450,17 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
     onChange(competitors.map(c => c.id === updated.id ? { ...updated, weeklyPoints: calcPoints(updated) } : c));
   };
 
+  const handleRename = () => {
+    if (!renameInput.trim()) return;
+    onChangeName(renameInput.trim().toUpperCase());
+    setShowRename(false);
+    setRenameInput('');
+  };
+
   const allPlayers = [me, ...competitors].sort((a, b) => calcPoints(b) - calcPoints(a));
+  const myPoints = calcPoints(me);
+  const myRank = getRank(myPoints);
+  const myBreakdown = calcBreakdown(me);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-up">
@@ -422,6 +508,29 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
           <button onClick={() => setShowFbSetup(true)} className="btn-gold" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Settings size={13} /> CONNECT
           </button>
+        </div>
+      )}
+
+      {/* Rename modal */}
+      {showRename && (
+        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowRename(false); }}>
+          <div className="modal-box" style={{ maxWidth: 360 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#D4AF37' }}>CHANGE CALLSIGN</h3>
+              <button onClick={() => setShowRename(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
+            </div>
+            <div className="label-upper" style={{ marginBottom: 8 }}>New Callsign</div>
+            <input
+              className="empire-input"
+              value={renameInput}
+              onChange={e => setRenameInput(e.target.value)}
+              placeholder={myName || 'Enter name...'}
+              onKeyDown={e => e.key === 'Enter' && handleRename()}
+              autoFocus
+              style={{ marginBottom: 14 }}
+            />
+            <button onClick={handleRename} className="btn-gold" style={{ width: '100%' }}>CONFIRM</button>
+          </div>
         </div>
       )}
 
@@ -491,7 +600,10 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                   { label: 'Weekly Earnings', value: formatCurrency(myWeeklyEarnings) },
                   { label: 'Goals Completed', value: myGoalsCompleted },
                   { label: 'Focus Hours', value: `${myFocusHours}h` },
-                  { label: 'Total Points', value: me.weeklyPoints },
+                  { label: 'Journal Entries', value: myWeeklyJournals },
+                  { label: 'Avg Sleep Quality', value: mySleepScore > 0 ? `${mySleepScore.toFixed(1)}/5` : '—' },
+                  { label: 'Total Points', value: myPoints },
+                  { label: 'Rank', value: `${myRank.icon} ${myRank.label}` },
                 ].map(s => (
                   <div key={s.label}>
                     <div style={{ fontSize: 10, color: '#555' }}>{s.label}</div>
@@ -577,6 +689,8 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                 { key: 'weeklyEarnings', label: 'WEEKLY EARNINGS ($)' },
                 { key: 'goalsCompleted', label: 'GOALS COMPLETED' },
                 { key: 'focusHours', label: 'FOCUS HOURS' },
+                { key: 'weeklyJournals', label: 'JOURNAL ENTRIES' },
+                { key: 'sleepScore', label: 'AVG SLEEP QUALITY (0-5)' },
               ].map(f => (
                 <div key={f.key}>
                   <div className="label-upper" style={{ marginBottom: 6 }}>{f.label}</div>
@@ -598,41 +712,85 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         />
       )}
 
-      {/* My stats */}
-      <div className="empire-card" style={{ borderColor: 'rgba(212,175,55,0.3)', background: 'linear-gradient(135deg, rgba(212,175,55,0.06), transparent)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.1em', fontWeight: 700 }}>◆ YOUR WEEKLY PERFORMANCE</div>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            {fbReady && <span style={{ fontSize: 10, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace' }}>● BROADCASTING LIVE</span>}
+      {/* My Command Card */}
+      <div className="empire-card" style={{ borderColor: `${myRank.color}40`, background: `linear-gradient(135deg, ${myRank.color}08, transparent)` }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+              <div style={{ fontSize: 11, color: myRank.color, letterSpacing: '0.1em', fontWeight: 700 }}>◆ YOUR COMMAND STATION</div>
+              {fbReady && <span style={{ fontSize: 10, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace' }}>● BROADCASTING LIVE</span>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ fontSize: 24 }}>🔱</div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '0.04em' }}>{myName || 'YOU'}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                  <span style={{ fontSize: 11, color: myRank.color, fontWeight: 700 }}>{myRank.icon} {myRank.label}</span>
+                  <span style={{ fontSize: 10, color: '#444' }}>·</span>
+                  <span style={{ fontSize: 20, fontWeight: 900, color: myRank.color, fontFamily: 'JetBrains Mono, monospace' }}>{myPoints}</span>
+                  <span style={{ fontSize: 10, color: '#555' }}>PTS THIS WEEK</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setRenameInput(myName); setShowRename(true); }} className="btn-ghost" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 5, borderColor: 'rgba(212,175,55,0.3)', color: '#D4AF37' }}>
+              <Edit3 size={11} /> CALLSIGN
+            </button>
             <button onClick={() => setShowShareModal(true)} className="btn-ghost" style={{ fontSize: 10, display: 'flex', alignItems: 'center', gap: 5, borderColor: 'rgba(212,175,55,0.3)', color: '#D4AF37' }}>
               <Share2 size={11} /> SHARE
             </button>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {[
-            { label: 'HABITS', value: myWeeklyHabits, color: '#FF6B35' },
-            { label: 'REVENUE', value: formatCurrency(myWeeklyEarnings), color: '#00FF87' },
-            { label: 'GOALS DONE', value: myGoalsCompleted, color: '#D4AF37' },
-            { label: 'FOCUS HRS', value: `${myFocusHours}h`, color: '#00D4FF' },
-            { label: 'POINTS', value: me.weeklyPoints, color: '#D4AF37' },
-          ].map(s => (
-            <div key={s.label} style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
-              <div style={{ fontSize: 24, fontWeight: 800, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
-              <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.08em', marginTop: 4 }}>{s.label}</div>
-            </div>
-          ))}
+
+        {/* 6-category breakdown */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 8 }}>
+          {CATEGORIES.map(cat => {
+            const pts = myBreakdown[cat.key];
+            return (
+              <div key={cat.key} style={{ background: `${cat.color}10`, border: `1px solid ${cat.color}25`, borderRadius: 10, padding: '10px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 16, marginBottom: 4 }}>{cat.icon}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: cat.color, fontFamily: 'JetBrains Mono, monospace' }}>{pts}</div>
+                <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em', marginTop: 3 }}>{cat.label}</div>
+              </div>
+            );
+          })}
         </div>
+
+        {/* Rank progression */}
+        {(() => {
+          const currentRankIdx = RANKS.findIndex(r => r.label === myRank.label);
+          const nextRank = RANKS[currentRankIdx + 1];
+          if (!nextRank) return (
+            <div style={{ marginTop: 12, textAlign: 'center', fontSize: 12, color: '#D4AF37', fontWeight: 700, letterSpacing: '0.08em' }}>
+              👑 MAXIMUM RANK ACHIEVED — EMPEROR
+            </div>
+          );
+          const progress = ((myPoints - myRank.min) / (nextRank.min - myRank.min)) * 100;
+          return (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, color: '#555' }}>{myRank.icon} {myRank.label}</span>
+                <span style={{ fontSize: 10, color: '#555' }}>{nextRank.min - myPoints} pts to {nextRank.icon} {nextRank.label}</span>
+              </div>
+              <div className="progress-track">
+                <div className="progress-fill" style={{ width: `${Math.min(progress, 100)}%`, background: `linear-gradient(90deg, ${myRank.color}, ${nextRank.color})` }} />
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Leaderboard */}
       <div className="empire-card">
-        <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>WEEKLY LEADERBOARD</div>
+        <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>⚔ ARENA LEADERBOARD</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {allPlayers.map((player, idx) => {
             const points = calcPoints(player);
+            const breakdown = calcBreakdown(player);
             const maxPoints = calcPoints(allPlayers[0]);
             const pct = maxPoints > 0 ? (points / maxPoints) * 100 : 0;
+            const rank = getRank(points);
             const isLive = !player.isMe && fbReady && (liveStatuses[player.id] || !!player.operatorId);
             const isExpanded = expandedId === player.id;
             const rival = competitors.find(c => c.id === player.id);
@@ -640,58 +798,74 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             return (
               <div key={player.id}>
                 <div style={{
-                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
                   borderRadius: isExpanded ? '10px 10px 0 0' : 10,
-                  background: player.isMe ? 'rgba(212,175,55,0.06)' : '#0d0d0d',
-                  border: `1px solid ${player.isMe ? 'rgba(212,175,55,0.2)' : isLive ? 'rgba(0,255,135,0.15)' : '#1f1f1f'}`,
+                  background: player.isMe ? `${rank.color}08` : '#0d0d0d',
+                  border: `1px solid ${player.isMe ? `${rank.color}30` : isLive ? 'rgba(0,255,135,0.15)' : '#1f1f1f'}`,
                   borderBottom: isExpanded ? 'none' : undefined,
+                  overflow: 'hidden',
                 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: idx < 3 ? `${medalColors[idx]}20` : '#111', border: `2px solid ${idx < 3 ? medalColors[idx] : '#2a2a2a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: idx === 0 ? 16 : 12, color: idx < 3 ? medalColors[idx] : '#444', fontWeight: 800 }}>
-                    {idx === 0 ? '👑' : idx + 1}
-                  </div>
-                  <div style={{ fontSize: 22 }}>{player.avatar}</div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: player.isMe ? '#D4AF37' : '#ddd' }}>{player.name.toUpperCase()}</span>
-                      {player.isMe && <span style={{ fontSize: 9, color: '#D4AF37', background: 'rgba(212,175,55,0.1)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>YOU</span>}
-                      {isLive && <span style={{ fontSize: 9, color: '#00FF87', background: 'rgba(0,255,135,0.08)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>● LIVE</span>}
-                      {rival?.occupation && <span style={{ fontSize: 10, color: '#555' }}>{rival.occupation}</span>}
-                      {player.lastSync && !player.isMe && (
-                        <span style={{ fontSize: 9, color: '#444', letterSpacing: '0.06em' }}>{isLive ? 'updated' : 'synced'} {player.lastSync}</span>
-                      )}
+                  {/* Card header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px' }}>
+                    {/* Position */}
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: idx < 3 ? `${medalColors[idx]}20` : '#111', border: `2px solid ${idx < 3 ? medalColors[idx] : '#2a2a2a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: idx === 0 ? 16 : 12, color: idx < 3 ? medalColors[idx] : '#444', fontWeight: 800 }}>
+                      {idx === 0 ? '👑' : idx + 1}
                     </div>
-                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${pct}%`, background: player.isMe ? 'linear-gradient(90deg, #D4AF37, #FFD700)' : isLive ? 'linear-gradient(90deg, #00FF87, #00D4FF)' : idx === 1 ? 'linear-gradient(90deg, #C0C0C0, #e0e0e0)' : 'linear-gradient(90deg, #555, #777)' }} />
+
+                    {/* Avatar */}
+                    <div style={{ fontSize: 24, flexShrink: 0 }}>{player.avatar}</div>
+
+                    {/* Name + rank + badges */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: player.isMe ? rank.color : '#ddd' }}>{player.name.toUpperCase()}</span>
+                        <span style={{ fontSize: 10, color: rank.color, background: `${rank.color}15`, padding: '2px 8px', borderRadius: 20, fontWeight: 700, border: `1px solid ${rank.color}30` }}>{rank.icon} {rank.label}</span>
+                        {player.isMe && <span style={{ fontSize: 9, color: '#D4AF37', background: 'rgba(212,175,55,0.1)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>YOU</span>}
+                        {isLive && <span style={{ fontSize: 9, color: '#00FF87', background: 'rgba(0,255,135,0.08)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>● LIVE</span>}
+                        {rival?.occupation && <span style={{ fontSize: 10, color: '#555' }}>{rival.occupation}</span>}
+                      </div>
+                      <div className="progress-track" style={{ height: 4 }}>
+                        <div className="progress-fill" style={{ width: `${pct}%`, background: player.isMe ? `linear-gradient(90deg, ${rank.color}, ${rank.color}aa)` : isLive ? 'linear-gradient(90deg, #00FF87, #00D4FF)' : idx === 1 ? 'linear-gradient(90deg, #C0C0C0, #e0e0e0)' : 'linear-gradient(90deg, #555, #777)' }} />
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#888', fontFamily: 'JetBrains Mono, monospace' }}>{player.weeklyHabits}</div>
-                      <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>HABITS</div>
+
+                    {/* Total points */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: 22, fontWeight: 900, color: idx < 3 ? medalColors[idx] : '#888', fontFamily: 'JetBrains Mono, monospace' }}>{points}</div>
+                      <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>TOTAL PTS</div>
                     </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(player.weeklyEarnings)}</div>
-                      <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>EARNED</div>
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: idx < 3 ? medalColors[idx] : '#888', fontFamily: 'JetBrains Mono, monospace' }}>{points}</div>
-                      <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>POINTS</div>
-                    </div>
-                  </div>
-                  {!player.isMe && (
+
+                    {/* Actions */}
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => rival && setIntelRival({ ...rival })} title="Rival Intel" style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><Info size={14} /></button>
-                      {!player.operatorId && (
-                        <button onClick={() => { setEditId(player.id); setEditData({ weeklyHabits: player.weeklyHabits, weeklyEarnings: player.weeklyEarnings, goalsCompleted: player.goalsCompleted, focusHours: player.focusHours }); }} title="Edit stats" style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>
-                          <Edit2 size={14} />
-                        </button>
+                      {!player.isMe && (
+                        <>
+                          <button onClick={() => rival && setIntelRival({ ...rival })} title="Rival Intel" style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><Info size={14} /></button>
+                          {!player.operatorId && (
+                            <button onClick={() => { setEditId(player.id); setEditData({ weeklyHabits: player.weeklyHabits, weeklyEarnings: player.weeklyEarnings, goalsCompleted: player.goalsCompleted, focusHours: player.focusHours, weeklyJournals: player.weeklyJournals, sleepScore: player.sleepScore }); }} title="Edit stats" style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+                          <button onClick={() => deleteCompetitor(player.id)} style={{ background: 'none', border: 'none', color: '#333', cursor: 'pointer' }}><Trash2 size={14} /></button>
+                        </>
                       )}
                       <button onClick={() => setExpandedId(isExpanded ? null : player.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
-                      <button onClick={() => deleteCompetitor(player.id)} style={{ background: 'none', border: 'none', color: '#333', cursor: 'pointer' }}><Trash2 size={14} /></button>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Category breakdown row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', borderTop: '1px solid #111', padding: '8px 16px', gap: 4 }}>
+                    {CATEGORIES.map(cat => {
+                      const pts = breakdown[cat.key];
+                      return (
+                        <div key={cat.key} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 11, marginBottom: 1 }}>{cat.icon}</div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: pts > 0 ? cat.color : '#333', fontFamily: 'JetBrains Mono, monospace' }}>{pts}</div>
+                          <div style={{ fontSize: 7, color: '#444', letterSpacing: '0.04em' }}>{cat.label}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Expanded dossier */}
@@ -734,6 +908,12 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                           <div style={{ fontSize: 16, fontWeight: 700, color: '#D4AF37', fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(rival.netWorth)}</div>
                         </div>
                       )}
+                      {rival.currentStreak !== undefined && rival.currentStreak > 0 && (
+                        <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px' }}>
+                          <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>STREAK</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#FF6B35' }}>🔥 {rival.currentStreak}d</div>
+                        </div>
+                      )}
                       {rival.wakeTime && (
                         <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px' }}>
                           <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>WAKE TIME</div>
@@ -746,6 +926,12 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                           <div style={{ fontSize: 16, fontWeight: 700, color: '#7B61FF' }}>{rival.sleepTime}</div>
                         </div>
                       )}
+                      {rival.allTimePoints !== undefined && rival.allTimePoints > 0 && (
+                        <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px' }}>
+                          <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>ALL-TIME PTS</div>
+                          <div style={{ fontSize: 16, fontWeight: 700, color: '#D4AF37', fontFamily: 'JetBrains Mono, monospace' }}>{rival.allTimePoints.toLocaleString()}</div>
+                        </div>
+                      )}
                       {(rival.customStats || []).map((s, i) => (
                         <div key={i} style={{ background: '#111', borderRadius: 8, padding: '10px 12px' }}>
                           <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>{s.label.toUpperCase()}</div>
@@ -753,13 +939,35 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                         </div>
                       ))}
                     </div>
+                    {rival.currentGoals && (
+                      <div style={{ background: '#111', borderRadius: 8, padding: '12px', marginBottom: 10 }}>
+                        <div style={{ fontSize: 9, color: '#FF6B35', letterSpacing: '0.1em', marginBottom: 6 }}>CURRENT GOALS</div>
+                        <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>{rival.currentGoals}</div>
+                      </div>
+                    )}
+                    {(rival.strengths || rival.weaknesses) && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+                        {rival.strengths && (
+                          <div style={{ background: 'rgba(0,255,135,0.05)', border: '1px solid rgba(0,255,135,0.12)', borderRadius: 8, padding: '10px 12px' }}>
+                            <div style={{ fontSize: 9, color: '#00FF87', letterSpacing: '0.1em', marginBottom: 6 }}>STRENGTHS</div>
+                            <div style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>{rival.strengths}</div>
+                          </div>
+                        )}
+                        {rival.weaknesses && (
+                          <div style={{ background: 'rgba(255,65,65,0.05)', border: '1px solid rgba(255,65,65,0.12)', borderRadius: 8, padding: '10px 12px' }}>
+                            <div style={{ fontSize: 9, color: '#FF4141', letterSpacing: '0.1em', marginBottom: 6 }}>WEAKNESSES</div>
+                            <div style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>{rival.weaknesses}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     {rival.notes && (
                       <div style={{ background: '#111', borderRadius: 8, padding: '12px', marginBottom: 12 }}>
                         <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 6 }}>INTEL NOTES</div>
                         <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>{rival.notes}</div>
                       </div>
                     )}
-                    {!rival.age && !rival.location && !rival.instagram && !rival.monthlyRevenue && !rival.notes && (rival.customStats || []).length === 0 && (
+                    {!rival.age && !rival.location && !rival.instagram && !rival.monthlyRevenue && !rival.notes && !rival.currentGoals && (rival.customStats || []).length === 0 && (
                       <div style={{ fontSize: 12, color: '#333', fontStyle: 'italic', marginBottom: 10 }}>No intel filed yet.</div>
                     )}
                     <button onClick={() => setIntelRival({ ...rival })} style={{ fontSize: 11, color: '#D4AF37', background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.06em' }}>
@@ -773,7 +981,50 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       </div>
 
-      {/* Chart */}
+      {/* Category Domination */}
+      {allPlayers.length > 1 && (
+        <div className="empire-card">
+          <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 14 }}>🏆 CATEGORY DOMINATION — WHO OWNS EACH ARENA</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+            {CATEGORIES.map(cat => {
+              const winner = allPlayers.reduce((best, p) => {
+                const pts = calcBreakdown(p)[cat.key];
+                const bestPts = calcBreakdown(best)[cat.key];
+                return pts > bestPts ? p : best;
+              }, allPlayers[0]);
+              const winnerPts = calcBreakdown(winner)[cat.key];
+              const secondPts = allPlayers
+                .filter(p => p.id !== winner.id)
+                .reduce((max, p) => Math.max(max, calcBreakdown(p)[cat.key]), 0);
+              const gap = winnerPts - secondPts;
+
+              return (
+                <div key={cat.key} style={{ background: `${cat.color}08`, border: `1px solid ${cat.color}20`, borderRadius: 10, padding: '14px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                    <span style={{ fontSize: 16 }}>{cat.icon}</span>
+                    <span style={{ fontSize: 9, color: cat.color, letterSpacing: '0.1em', fontWeight: 700 }}>{cat.label}</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 18 }}>{winner.avatar}</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: winner.isMe ? cat.color : '#ddd' }}>{winner.name.slice(0, 12)}</div>
+                      <div style={{ fontSize: 16, fontWeight: 900, color: cat.color, fontFamily: 'JetBrains Mono, monospace' }}>{winnerPts} pts</div>
+                    </div>
+                  </div>
+                  {gap > 0 && allPlayers.length > 1 && (
+                    <div style={{ fontSize: 10, color: '#444' }}>+{gap} ahead</div>
+                  )}
+                  {winnerPts === 0 && (
+                    <div style={{ fontSize: 10, color: '#333', fontStyle: 'italic' }}>No activity yet</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Head-to-head chart */}
       {allPlayers.length > 1 && (
         <div className="empire-card">
           <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>HEAD-TO-HEAD — WEEKLY POINTS</div>
@@ -790,25 +1041,44 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       )}
 
-      {/* Points system */}
-      <div className="empire-card">
-        <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 14 }}>◆ POINTS SYSTEM</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
-          {[
-            { label: 'Habit check-in', value: '10 pts', color: '#FF6B35' },
-            { label: '$100 earned', value: '1 pt', color: '#00FF87' },
-            { label: 'Goal completed', value: '50 pts', color: '#D4AF37' },
-            { label: 'Focus hour', value: '5 pts', color: '#00D4FF' },
-          ].map(s => (
-            <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: '#111', borderRadius: 8 }}>
-              <span style={{ fontSize: 12, color: '#666' }}>{s.label}</span>
-              <span style={{ fontSize: 12, fontWeight: 700, color: s.color }}>{s.value}</span>
-            </div>
-          ))}
+      {/* Points system + Rank tiers */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+        <div className="empire-card">
+          <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 14 }}>◆ POINTS FORMULA</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {[
+              { label: 'Habit check-in', value: '×10 pts', color: '#FF6B35', icon: '🏃' },
+              { label: '$100 earned', value: '×1 pt', color: '#00FF87', icon: '💰' },
+              { label: 'Goal completed', value: '×50 pts', color: '#D4AF37', icon: '🎯' },
+              { label: 'Focus hour', value: '×5 pts', color: '#00D4FF', icon: '⏱' },
+              { label: 'Sleep quality (avg)', value: '×15 pts', color: '#7B61FF', icon: '🌙' },
+              { label: 'Journal entry', value: '×15 pts', color: '#FF4141', icon: '📓' },
+            ].map(s => (
+              <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#111', borderRadius: 8 }}>
+                <span style={{ fontSize: 11, color: '#666' }}>{s.icon} {s.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</span>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{ marginTop: 12, padding: '10px', background: '#0a0a0a', borderRadius: 8, fontSize: 11, color: '#444', lineHeight: 1.6 }}>
-          💡 Use the ℹ button on each rival to file detailed intel. Click the chevron (∨) to expand their dossier inline.
+        <div className="empire-card">
+          <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 14 }}>◆ RANK TIERS</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {RANKS.map(r => {
+              const isActive = myRank.label === r.label;
+              return (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: isActive ? `${r.color}15` : '#111', borderRadius: 8, border: `1px solid ${isActive ? `${r.color}40` : 'transparent'}` }}>
+                  <span style={{ fontSize: 11, color: isActive ? r.color : '#555', fontWeight: isActive ? 700 : 400 }}>{r.icon} {r.label}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? r.color : '#333', fontFamily: 'JetBrains Mono, monospace' }}>{r.min}+ pts</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
+
+      <div style={{ padding: '10px 14px', background: '#0a0a0a', borderRadius: 8, fontSize: 11, color: '#444', lineHeight: 1.6, border: '1px solid #111' }}>
+        💡 Sleep quality auto-syncs from your Sleep Lab · Journal score from your journal entries · Use ℹ to file rival intel · Click ∨ to expand their full dossier
       </div>
     </div>
   );
