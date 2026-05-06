@@ -2,7 +2,11 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [claude/luxury-productivity-app-0lEih, main]
+    branches:
+      - claude/productivity-motivation-app-sWsNw
+      - claude/luxury-productivity-app-0lEih
+      - main
+  workflow_dispatch:
 
 permissions:
   contents: read
