@@ -5,6 +5,7 @@ on:
     branches:
       - claude/productivity-motivation-app-sWsNw
       - claude/luxury-productivity-app-0lEih
+      - claude/add-expense-tracking-timeline-ipDCS
       - main
   workflow_dispatch:
 

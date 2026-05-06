@@ -1,9 +1,6 @@
-import React, { useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Trophy, Plus, Trash2, Crown, X, Edit2, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { Trophy, Plus, Trash2, Edit2, X, Share2, Copy, Check, Wifi, WifiOff, Settings, Zap } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Share2, Copy, Check, Wifi, WifiOff, Settings, Zap, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import type { CompetitorProfile, Habit, EarningEntry, Goal, PomodoroSession } from '../types';
 import { formatCurrency, uid, today, getLast7Days } from '../utils/formatters';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -46,6 +43,11 @@ interface Props {
   onUpdateMe: (c: CompetitorProfile) => void;
 }
 
+const BLANK_CONFIG: FirebaseConfig = {
+  apiKey: '', authDomain: '', databaseURL: '', projectId: '',
+  storageBucket: '', messagingSenderId: '', appId: '',
+};
+
 function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile; onClose: () => void; onSave: (r: CompetitorProfile) => void }) {
   const [data, setData] = useState<CompetitorProfile>({ ...rival });
   const [newStatLabel, setNewStatLabel] = useState('');
@@ -70,7 +72,6 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
           </h3>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
         </div>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           {/* Identity */}
           <div>
@@ -112,14 +113,14 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
             <div style={{ fontSize: 10, color: '#00FF87', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ WEEKLY PERFORMANCE</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               {[
-                { key: 'weeklyHabits', label: 'WEEKLY HABITS', type: 'number', step: '1' },
-                { key: 'weeklyEarnings', label: 'WEEKLY EARNINGS ($)', type: 'number', step: '0.01' },
-                { key: 'goalsCompleted', label: 'GOALS COMPLETED', type: 'number', step: '1' },
-                { key: 'focusHours', label: 'FOCUS HOURS', type: 'number', step: '0.5' },
+                { key: 'weeklyHabits', label: 'WEEKLY HABITS', step: '1' },
+                { key: 'weeklyEarnings', label: 'WEEKLY EARNINGS ($)', step: '0.01' },
+                { key: 'goalsCompleted', label: 'GOALS COMPLETED', step: '1' },
+                { key: 'focusHours', label: 'FOCUS HOURS', step: '0.5' },
               ].map(f => (
                 <div key={f.key}>
                   <div className="label-upper" style={{ marginBottom: 6 }}>{f.label}</div>
-                  <input className="empire-input" type={f.type} step={f.step} value={(data as unknown as Record<string, number>)[f.key] ?? 0} onChange={e => setData(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))} />
+                  <input className="empire-input" type="number" step={f.step} value={(data as unknown as Record<string, number>)[f.key] ?? 0} onChange={e => setData(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))} />
                 </div>
               ))}
             </div>
@@ -144,9 +145,9 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
             </div>
           </div>
 
-          {/* Habits / Schedule */}
+          {/* Schedule */}
           <div>
-            <div style={{ fontSize: 10, color: '#00D4FF', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ SCHEDULE & HABITS</div>
+            <div style={{ fontSize: 10, color: '#00D4FF', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 10 }}>◆ SCHEDULE</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
               <div>
                 <div className="label-upper" style={{ marginBottom: 6 }}>Wake Time</div>
@@ -195,17 +196,6 @@ function RivalIntelModal({ rival, onClose, onSave }: { rival: CompetitorProfile;
   );
 }
 
-export default function Competition({ competitors, habits, earnings, goals, pomodoro, myName, onChange, onUpdateMe }: Props) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [name, setName] = useState('');
-  const [avatar, setAvatar] = useState('⚡');
-  const [intelRival, setIntelRival] = useState<CompetitorProfile | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-const BLANK_CONFIG: FirebaseConfig = {
-  apiKey: '', authDomain: '', databaseURL: '', projectId: '',
-  storageBucket: '', messagingSenderId: '', appId: '',
-};
-
 export default function Competition({ competitors, habits, earnings, goals, pomodoro, myName, onChange }: Props) {
   const [operatorId] = useLocalStorage<string>('empire_operatorId', uid());
   const [fbConfig, setFbConfig] = useLocalStorage<FirebaseConfig>('empire_fbConfig', BLANK_CONFIG);
@@ -226,6 +216,8 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   const [configDraft, setConfigDraft] = useState<FirebaseConfig>(fbConfig);
   const [fbError, setFbError] = useState('');
   const [liveStatuses, setLiveStatuses] = useState<Record<string, boolean>>({});
+  const [intelRival, setIntelRival] = useState<CompetitorProfile | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const unsubRefs = useRef<Record<string, () => void>>({});
 
   const last7 = getLast7Days();
@@ -235,10 +227,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   const myFocusHours = parseFloat((pomodoro.filter(s => last7.includes(s.date) && s.completed && s.type === 'work').reduce((s, p) => s + p.duration, 0) / 60).toFixed(1));
 
   const me: CompetitorProfile = {
-    id: 'me', name: myName || 'YOU', avatar: '🔱',
-    weeklyHabits: myWeeklyHabits, weeklyEarnings: myWeeklyEarnings,
-    goalsCompleted: myGoalsCompleted, focusHours: parseFloat(myFocusHours.toFixed(1)),
-    weeklyPoints: 0, achievements: [], isMe: true,
     id: operatorId, name: myName || 'YOU', avatar: '🔱',
     weeklyHabits: myWeeklyHabits, weeklyEarnings: myWeeklyEarnings,
     goalsCompleted: myGoalsCompleted, focusHours: myFocusHours,
@@ -246,7 +234,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
   };
   me.weeklyPoints = calcPoints(me);
 
-  // Init Firebase on load if config saved
   useEffect(() => {
     if (fbConfig.databaseURL) {
       const ok = initFirebase(fbConfig);
@@ -254,26 +241,14 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
     }
   }, []);
 
-  // Auto-publish my stats to Firebase whenever they change
   useEffect(() => {
     if (!fbReady || !isFirebaseReady()) return;
     publishProfile(operatorId, me).catch(() => {});
   }, [fbReady, myWeeklyHabits, myWeeklyEarnings, myGoalsCompleted, myFocusHours]);
 
-  // Subscribe to all live rivals
   const competitorsRef = useRef(competitors);
   competitorsRef.current = competitors;
 
-  const addCompetitor = () => {
-    if (!name.trim()) return;
-    const c: CompetitorProfile = {
-      id: uid(), name: name.trim(), avatar, weeklyHabits: 0, weeklyEarnings: 0,
-      goalsCompleted: 0, focusHours: 0, weeklyPoints: 0, achievements: [], isMe: false,
-    };
-    onChange([...competitors, c]);
-    setName(''); setShowAdd(false);
-    // Open intel immediately so they can fill details
-    setIntelRival(c);
   const subscribeRival = useCallback((rival: CompetitorProfile) => {
     if (!rival.operatorId || !isFirebaseReady()) return;
     if (unsubRefs.current[rival.id]) return;
@@ -301,7 +276,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
     };
   }, [fbReady, competitors.length]);
 
-  // Check URL hash for incoming profile
   useEffect(() => {
     const hash = window.location.hash;
     const match = hash.match(/#squad=(.+)/);
@@ -337,7 +311,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
 
   const addLiveRival = () => {
     setLinkError('');
-    if (!rivalOpId.trim()) { setLinkError('Enter your friend\'s Operator ID.'); return; }
+    if (!rivalOpId.trim()) { setLinkError("Enter your friend's Operator ID."); return; }
     if (!rivalName.trim()) { setLinkError('Enter a name for your rival.'); return; }
     const id = rivalOpId.trim();
     if (competitors.find(c => c.operatorId === id)) { setLinkError('Already tracking this rival.'); return; }
@@ -391,14 +365,15 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
     setLiveStatuses(prev => { const n = { ...prev }; delete n[id]; return n; });
   };
 
+  const updateCompetitor = (id: string, data: Partial<CompetitorProfile>) => {
+    onChange(competitors.map(c => c.id === id ? { ...c, ...data, weeklyPoints: calcPoints({ ...c, ...data } as CompetitorProfile) } : c));
+    setEditId(null);
+  };
+
   const saveRival = (updated: CompetitorProfile) => {
-    if (updated.id === 'me') return;
     onChange(competitors.map(c => c.id === updated.id ? { ...updated, weeklyPoints: calcPoints(updated) } : c));
   };
 
-  const deleteCompetitor = (id: string) => onChange(competitors.filter(c => c.id !== id));
-
-  const medalColors = ['#D4AF37', '#C0C0C0', '#CD7F32'];
   const allPlayers = [me, ...competitors].sort((a, b) => calcPoints(b) - calcPoints(a));
 
   return (
@@ -411,9 +386,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button onClick={() => setShowFbSetup(true)} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 6 }} title="Live sync settings">
-            {fbReady
-              ? <><Wifi size={13} color="#00FF87" /> <span style={{ color: '#00FF87' }}>LIVE</span></>
-              : <><WifiOff size={13} /> SETUP LIVE</>}
+            {fbReady ? <><Wifi size={13} color="#00FF87" /> <span style={{ color: '#00FF87' }}>LIVE</span></> : <><WifiOff size={13} /> SETUP LIVE</>}
           </button>
           <button onClick={() => setShowShareModal(true)} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Share2 size={13} /> SHARE
@@ -424,7 +397,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       </div>
 
-      {/* Add Rival Modal */}
       {/* Live status banner */}
       {fbReady ? (
         <div style={{ background: 'linear-gradient(135deg, rgba(0,255,135,0.06), rgba(0,255,135,0.02))', border: '1px solid rgba(0,255,135,0.15)', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -432,7 +404,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#00FF87', marginBottom: 3 }}>LIVE SYNC ACTIVE — REAL-TIME MODE</div>
             <div style={{ fontSize: 11, color: '#555', lineHeight: 1.6 }}>
-              Your stats broadcast automatically. Add rivals by their <strong style={{ color: '#ccc' }}>Operator ID</strong> and their stats update in real-time whenever they use the app.
+              Your stats broadcast automatically. Add rivals by their <strong style={{ color: '#ccc' }}>Operator ID</strong> and their stats update in real-time.
             </div>
           </div>
         </div>
@@ -443,7 +415,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#D4AF37', marginBottom: 4 }}>ENABLE REAL-TIME SYNC</div>
               <div style={{ fontSize: 12, color: '#666', lineHeight: 1.6 }}>
-                Connect Firebase (free) to see rival stats update live — no manual sharing. Or use share links for offline mode.
+                Connect Firebase (free) to see rival stats update live. Or use share links for offline mode.
               </div>
             </div>
           </div>
@@ -458,29 +430,21 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowFbSetup(false); }}>
           <div className="modal-box" style={{ maxWidth: 520 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#D4AF37' }}>
-                <Wifi size={15} style={{ marginRight: 8, verticalAlign: 'middle' }} />LIVE SYNC SETUP
-              </h3>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#D4AF37' }}>LIVE SYNC SETUP</h3>
               <button onClick={() => setShowFbSetup(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
             </div>
             <div style={{ fontSize: 12, color: '#555', marginBottom: 18, lineHeight: 1.8 }}>
-              Create a free Firebase project in <strong style={{ color: '#ccc' }}>2 minutes</strong>:<br />
+              Create a free Firebase project:<br />
               1. Go to <strong style={{ color: '#D4AF37' }}>console.firebase.google.com</strong> → Add project<br />
               2. Build → Realtime Database → Create database (test mode)<br />
-              3. Project Settings ⚙️ → Your apps → Add web app → copy config<br />
+              3. Project Settings → Your apps → Add web app → copy config<br />
               4. Paste each field below and click Connect.
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
               {(Object.keys(BLANK_CONFIG) as Array<keyof FirebaseConfig>).map(key => (
                 <div key={key}>
                   <div className="label-upper" style={{ marginBottom: 6 }}>{key}</div>
-                  <input
-                    className="empire-input"
-                    value={configDraft[key]}
-                    onChange={e => setConfigDraft(prev => ({ ...prev, [key]: e.target.value }))}
-                    placeholder={key === 'databaseURL' ? 'https://xxx.firebaseio.com' : `Your ${key}`}
-                    style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}
-                  />
+                  <input className="empire-input" value={configDraft[key]} onChange={e => setConfigDraft(prev => ({ ...prev, [key]: e.target.value }))} placeholder={key === 'databaseURL' ? 'https://xxx.firebaseio.com' : `Your ${key}`} style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }} />
                 </div>
               ))}
             </div>
@@ -489,8 +453,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
               <Wifi size={14} /> CONNECT & GO LIVE
             </button>
             {fbReady && (
-              <button onClick={() => { setFbConfig(BLANK_CONFIG); setFbReady(false); setShowFbSetup(false); }}
-                style={{ marginTop: 10, width: '100%', padding: '8px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#555', cursor: 'pointer', fontSize: 12 }}>
+              <button onClick={() => { setFbConfig(BLANK_CONFIG); setFbReady(false); setShowFbSetup(false); }} style={{ marginTop: 10, width: '100%', padding: '8px', background: 'none', border: '1px solid #2a2a2a', borderRadius: 8, color: '#555', cursor: 'pointer', fontSize: 12 }}>
                 Disconnect
               </button>
             )}
@@ -506,26 +469,20 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#D4AF37' }}>SHARE YOUR STATS</h3>
               <button onClick={() => setShowShareModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
             </div>
-            {/* Operator ID section */}
             {fbReady && (
               <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: '#00FF87', fontWeight: 700, letterSpacing: '0.1em', marginBottom: 10 }}>
-                  ● LIVE MODE — OPERATOR ID
-                </div>
+                <div style={{ fontSize: 11, color: '#00FF87', fontWeight: 700, letterSpacing: '0.1em', marginBottom: 10 }}>● LIVE MODE — OPERATOR ID</div>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 10, lineHeight: 1.7 }}>
-                  Give your friend this ID. When they add you as a rival, your stats update <strong style={{ color: '#ccc' }}>automatically in real-time</strong> — no re-sharing needed.
+                  Give your friend this ID. Their app will sync your stats in real-time automatically.
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1, background: '#0d0d0d', border: '1px solid rgba(0,255,135,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>
-                    {operatorId}
-                  </div>
+                  <div style={{ flex: 1, background: '#0d0d0d', border: '1px solid rgba(0,255,135,0.2)', borderRadius: 8, padding: '12px 14px', fontSize: 12, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace', wordBreak: 'break-all' }}>{operatorId}</div>
                   <button onClick={copyOpId} className="btn-gold" style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {copiedOpId ? <Check size={14} /> : <Copy size={14} />}
                   </button>
                 </div>
               </div>
             )}
-            {/* Stats preview */}
             <div style={{ background: '#111', borderRadius: 10, padding: 16, marginBottom: 16 }}>
               <div style={{ fontSize: 10, color: '#555', letterSpacing: '0.1em', marginBottom: 12 }}>YOUR CURRENT STATS</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
@@ -543,7 +500,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                 ))}
               </div>
             </div>
-            {/* Static link fallback */}
             <div style={{ fontSize: 11, color: '#555', marginBottom: 10, letterSpacing: '0.08em' }}>
               {fbReady ? 'OR — SHARE A STATIC LINK (one-time snapshot)' : 'SHARE LINK (one-time snapshot)'}
             </div>
@@ -562,63 +518,29 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
               <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#D4AF37' }}>ADD RIVAL</h3>
               <button onClick={() => setShowAdd(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div>
-                <div className="label-upper" style={{ marginBottom: 6 }}>Rival Name</div>
-                <input className="empire-input" value={name} onChange={e => setName(e.target.value)} placeholder="Friend's name..." autoFocus onKeyDown={e => e.key === 'Enter' && addCompetitor()} />
-              </div>
-              <div>
-                <div className="label-upper" style={{ marginBottom: 8 }}>Avatar</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {AVATARS.map(a => (
-                    <button key={a} onClick={() => setAvatar(a)} style={{ width: 40, height: 40, borderRadius: 10, fontSize: 20, border: `2px solid ${avatar === a ? '#D4AF37' : '#1f1f1f'}`, background: avatar === a ? 'rgba(212,175,55,0.1)' : '#111', cursor: 'pointer' }}>{a}</button>
-                  ))}
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: '#555', padding: '10px', background: '#0a0a0a', borderRadius: 8 }}>
-                After adding, you'll be able to fill in detailed intel on this rival.
-              </div>
-              <button onClick={addCompetitor} className="btn-gold">ENTER THE ARENA</button>
-            </div>
-            </div>
-            {/* Mode tabs */}
             <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#0d0d0d', padding: 4, borderRadius: 10 }}>
               {fbReady && (
-                <button onClick={() => setAddMode('live')} style={{
-                  flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                  background: addMode === 'live' ? 'rgba(0,255,135,0.12)' : 'transparent',
-                  color: addMode === 'live' ? '#00FF87' : '#555',
-                }}>
+                <button onClick={() => setAddMode('live')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', background: addMode === 'live' ? 'rgba(0,255,135,0.12)' : 'transparent', color: addMode === 'live' ? '#00FF87' : '#555' }}>
                   ● LIVE (OPERATOR ID)
                 </button>
               )}
-              <button onClick={() => setAddMode('link')} style={{
-                flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
-                background: addMode === 'link' ? 'rgba(212,175,55,0.1)' : 'transparent',
-                color: addMode === 'link' ? '#D4AF37' : '#555',
-              }}>
+              <button onClick={() => setAddMode('link')} style={{ flex: 1, padding: '8px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', background: addMode === 'link' ? 'rgba(212,175,55,0.1)' : 'transparent', color: addMode === 'link' ? '#D4AF37' : '#555' }}>
                 ⚡ SHARE LINK
               </button>
             </div>
-
             {addMode === 'live' && fbReady ? (
               <>
                 <div style={{ fontSize: 12, color: '#666', marginBottom: 16, lineHeight: 1.7 }}>
-                  Ask your friend for their <strong style={{ color: '#00FF87' }}>Operator ID</strong> (found in their Arena → Share My Stats). Their stats sync live automatically.
+                  Ask your friend for their <strong style={{ color: '#00FF87' }}>Operator ID</strong> (found in Arena → Share). Their stats sync live automatically.
                 </div>
                 <div className="label-upper" style={{ marginBottom: 6 }}>RIVAL'S OPERATOR ID</div>
-                <input className="empire-input" value={rivalOpId} onChange={e => setRivalOpId(e.target.value)}
-                  placeholder="Paste Operator ID..." style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, marginBottom: 12 }} />
+                <input className="empire-input" value={rivalOpId} onChange={e => setRivalOpId(e.target.value)} placeholder="Paste Operator ID..." style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, marginBottom: 12 }} />
                 <div className="label-upper" style={{ marginBottom: 6 }}>RIVAL NAME</div>
-                <input className="empire-input" value={rivalName} onChange={e => setRivalName(e.target.value)}
-                  placeholder="e.g. ALEX" style={{ marginBottom: 12 }} />
+                <input className="empire-input" value={rivalName} onChange={e => setRivalName(e.target.value)} placeholder="e.g. ALEX" style={{ marginBottom: 12 }} />
                 <div className="label-upper" style={{ marginBottom: 8 }}>AVATAR</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                   {AVATARS.map(a => (
-                    <button key={a} onClick={() => setRivalAvatar(a)} style={{
-                      width: 40, height: 40, borderRadius: 8, fontSize: 20, border: `2px solid ${rivalAvatar === a ? '#D4AF37' : '#222'}`,
-                      background: rivalAvatar === a ? 'rgba(212,175,55,0.1)' : '#111', cursor: 'pointer',
-                    }}>{a}</button>
+                    <button key={a} onClick={() => setRivalAvatar(a)} style={{ width: 40, height: 40, borderRadius: 8, fontSize: 20, border: `2px solid ${rivalAvatar === a ? '#D4AF37' : '#222'}`, background: rivalAvatar === a ? 'rgba(212,175,55,0.1)' : '#111', cursor: 'pointer' }}>{a}</button>
                   ))}
                 </div>
                 {linkError && <div style={{ fontSize: 12, color: '#FF4141', marginBottom: 10 }}>{linkError}</div>}
@@ -629,11 +551,10 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             ) : (
               <>
                 <div style={{ fontSize: 13, color: '#666', marginBottom: 16, lineHeight: 1.7 }}>
-                  Ask your friend to open Arena → <strong style={{ color: '#D4AF37' }}>"Share My Stats"</strong> → copy the link → paste below.
+                  Ask your friend to open Arena → <strong style={{ color: '#D4AF37' }}>"Share"</strong> → copy the link → paste below.
                 </div>
                 <div className="label-upper" style={{ marginBottom: 8 }}>PASTE THEIR SHARE LINK</div>
-                <textarea className="empire-input" value={linkInput} onChange={e => setLinkInput(e.target.value)}
-                  placeholder="Paste the full link here..." style={{ height: 100, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }} />
+                <textarea className="empire-input" value={linkInput} onChange={e => setLinkInput(e.target.value)} placeholder="Paste the full link here..." style={{ height: 100, resize: 'vertical', fontFamily: 'JetBrains Mono, monospace', fontSize: 11 }} />
                 {linkError && <div style={{ fontSize: 12, color: '#FF4141', marginTop: 8 }}>{linkError}</div>}
                 <button onClick={importFromLink} className="btn-gold" style={{ marginTop: 14, width: '100%' }}>IMPORT RIVAL</button>
               </>
@@ -642,14 +563,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       )}
 
-      {/* Rival Intel Modal */}
-      {intelRival && (
-        <RivalIntelModal
-          rival={intelRival}
-          onClose={() => setIntelRival(null)}
-          onSave={updated => { saveRival(updated); setIntelRival(null); }}
-        />
-      {/* Edit modal */}
+      {/* Edit stats modal */}
       {editId && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setEditId(null); }}>
           <div className="modal-box">
@@ -666,9 +580,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
               ].map(f => (
                 <div key={f.key}>
                   <div className="label-upper" style={{ marginBottom: 6 }}>{f.label}</div>
-                  <input className="empire-input" type="number"
-                    value={(editData as Record<string, number>)[f.key] ?? 0}
-                    onChange={e => setEditData(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))} />
+                  <input className="empire-input" type="number" value={(editData as Record<string, number>)[f.key] ?? 0} onChange={e => setEditData(prev => ({ ...prev, [f.key]: parseFloat(e.target.value) || 0 }))} />
                 </div>
               ))}
             </div>
@@ -677,9 +589,17 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       )}
 
+      {/* Rival Intel Modal */}
+      {intelRival && (
+        <RivalIntelModal
+          rival={intelRival}
+          onClose={() => setIntelRival(null)}
+          onSave={updated => { saveRival(updated); setIntelRival(null); }}
+        />
+      )}
+
       {/* My stats */}
       <div className="empire-card" style={{ borderColor: 'rgba(212,175,55,0.3)', background: 'linear-gradient(135deg, rgba(212,175,55,0.06), transparent)' }}>
-        <div style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>◆ YOUR WEEKLY PERFORMANCE</div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.1em', fontWeight: 700 }}>◆ YOUR WEEKLY PERFORMANCE</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -698,7 +618,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             { label: 'POINTS', value: me.weeklyPoints, color: '#D4AF37' },
           ].map(s => (
             <div key={s.label} style={{ flex: 1, minWidth: 80, textAlign: 'center' }}>
-              <div style={{ fontSize: 22, fontWeight: 800, color: '#D4AF37', fontFamily: 'JetBrains Mono, monospace' }}>{s.value}{s.suffix}</div>
               <div style={{ fontSize: 24, fontWeight: 800, color: s.color, fontFamily: 'JetBrains Mono, monospace' }}>{s.value}</div>
               <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.08em', marginTop: 4 }}>{s.label}</div>
             </div>
@@ -714,25 +633,35 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             const points = calcPoints(player);
             const maxPoints = calcPoints(allPlayers[0]);
             const pct = maxPoints > 0 ? (points / maxPoints) * 100 : 0;
+            const isLive = !player.isMe && fbReady && (liveStatuses[player.id] || !!player.operatorId);
             const isExpanded = expandedId === player.id;
             const rival = competitors.find(c => c.id === player.id);
 
             return (
               <div key={player.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: isExpanded ? '10px 10px 0 0' : 10, background: player.isMe ? 'rgba(212,175,55,0.06)' : '#0d0d0d', border: `1px solid ${player.isMe ? 'rgba(212,175,55,0.2)' : '#1f1f1f'}`, borderBottom: isExpanded ? 'none' : undefined }}>
-                  {/* Rank */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px',
+                  borderRadius: isExpanded ? '10px 10px 0 0' : 10,
+                  background: player.isMe ? 'rgba(212,175,55,0.06)' : '#0d0d0d',
+                  border: `1px solid ${player.isMe ? 'rgba(212,175,55,0.2)' : isLive ? 'rgba(0,255,135,0.15)' : '#1f1f1f'}`,
+                  borderBottom: isExpanded ? 'none' : undefined,
+                }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, background: idx < 3 ? `${medalColors[idx]}20` : '#111', border: `2px solid ${idx < 3 ? medalColors[idx] : '#2a2a2a'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: idx === 0 ? 16 : 12, color: idx < 3 ? medalColors[idx] : '#444', fontWeight: 800 }}>
                     {idx === 0 ? '👑' : idx + 1}
                   </div>
                   <div style={{ fontSize: 22 }}>{player.avatar}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: player.isMe ? '#D4AF37' : '#ddd' }}>{player.name.toUpperCase()}</span>
                       {player.isMe && <span style={{ fontSize: 9, color: '#D4AF37', background: 'rgba(212,175,55,0.1)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>YOU</span>}
+                      {isLive && <span style={{ fontSize: 9, color: '#00FF87', background: 'rgba(0,255,135,0.08)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>● LIVE</span>}
                       {rival?.occupation && <span style={{ fontSize: 10, color: '#555' }}>{rival.occupation}</span>}
+                      {player.lastSync && !player.isMe && (
+                        <span style={{ fontSize: 9, color: '#444', letterSpacing: '0.06em' }}>{isLive ? 'updated' : 'synced'} {player.lastSync}</span>
+                      )}
                     </div>
                     <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${pct}%`, background: player.isMe ? 'linear-gradient(90deg, #D4AF37, #FFD700)' : idx === 1 ? 'linear-gradient(90deg, #C0C0C0, #e0e0e0)' : 'linear-gradient(90deg, #555, #777)' }} />
+                      <div className="progress-fill" style={{ width: `${pct}%`, background: player.isMe ? 'linear-gradient(90deg, #D4AF37, #FFD700)' : isLive ? 'linear-gradient(90deg, #00FF87, #00D4FF)' : idx === 1 ? 'linear-gradient(90deg, #C0C0C0, #e0e0e0)' : 'linear-gradient(90deg, #555, #777)' }} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
@@ -745,67 +674,18 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                       <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>EARNED</div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: idx < 3 ? medalColors[idx] : '#888', fontFamily: 'JetBrains Mono, monospace' }}>{points}</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: idx < 3 ? medalColors[idx] : '#888', fontFamily: 'JetBrains Mono, monospace' }}>{points}</div>
                       <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>POINTS</div>
                     </div>
-            const isLive = !player.isMe && (fbReady && (liveStatuses[player.id] || player.operatorId));
-            return (
-              <div key={player.id} style={{
-                display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 10,
-                background: player.isMe ? 'rgba(212,175,55,0.06)' : '#0d0d0d',
-                border: `1px solid ${player.isMe ? 'rgba(212,175,55,0.2)' : isLive ? 'rgba(0,255,135,0.15)' : '#1f1f1f'}`,
-              }}>
-                <div style={{
-                  width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                  background: idx < 3 ? `${medalColors[idx]}20` : '#111',
-                  border: `2px solid ${idx < 3 ? medalColors[idx] : '#2a2a2a'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: idx === 0 ? 16 : 12, color: idx < 3 ? medalColors[idx] : '#444', fontWeight: 800,
-                }}>
-                  {idx === 0 ? '👑' : idx + 1}
-                </div>
-                <div style={{ fontSize: 22 }}>{player.avatar}</div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: player.isMe ? '#D4AF37' : '#ddd' }}>
-                      {player.name.toUpperCase()}
-                    </span>
-                    {player.isMe && <span style={{ fontSize: 9, color: '#D4AF37', background: 'rgba(212,175,55,0.1)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>YOU</span>}
-                    {isLive && <span style={{ fontSize: 9, color: '#00FF87', background: 'rgba(0,255,135,0.08)', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>● LIVE</span>}
-                    {player.lastSync && !player.isMe && !isLive && (
-                      <span style={{ fontSize: 9, color: '#444', letterSpacing: '0.06em' }}>synced {player.lastSync}</span>
-                    )}
-                    {player.lastSync && !player.isMe && isLive && (
-                      <span style={{ fontSize: 9, color: '#444', letterSpacing: '0.06em' }}>updated {player.lastSync}</span>
-                    )}
-                  </div>
-                  <div className="progress-track">
-                    <div className="progress-fill" style={{
-                      width: `${pct}%`,
-                      background: player.isMe
-                        ? 'linear-gradient(90deg, #D4AF37, #FFD700)'
-                        : isLive ? 'linear-gradient(90deg, #00FF87, #00D4FF)'
-                        : idx === 1 ? 'linear-gradient(90deg, #C0C0C0, #e0e0e0)'
-                        : 'linear-gradient(90deg, #555, #777)',
-                    }} />
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: 20, flexShrink: 0 }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#888', fontFamily: 'JetBrains Mono, monospace' }}>{player.weeklyHabits}</div>
-                    <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>HABITS</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#00FF87', fontFamily: 'JetBrains Mono, monospace' }}>{formatCurrency(player.weeklyEarnings)}</div>
-                    <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>EARNED</div>
-                  </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: idx < 3 ? medalColors[idx] : '#888', fontFamily: 'JetBrains Mono, monospace' }}>{points}</div>
-                    <div style={{ fontSize: 8, color: '#444', letterSpacing: '0.06em' }}>POINTS</div>
                   </div>
                   {!player.isMe && (
                     <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button onClick={() => rival && setIntelRival(rival)} title="Edit Intel" style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><Info size={14} /></button>
+                      <button onClick={() => rival && setIntelRival({ ...rival })} title="Rival Intel" style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><Info size={14} /></button>
+                      {!player.operatorId && (
+                        <button onClick={() => { setEditId(player.id); setEditData({ weeklyHabits: player.weeklyHabits, weeklyEarnings: player.weeklyEarnings, goalsCompleted: player.goalsCompleted, focusHours: player.focusHours }); }} title="Edit stats" style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>
+                          <Edit2 size={14} />
+                        </button>
+                      )}
                       <button onClick={() => setExpandedId(isExpanded ? null : player.id)} style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }}>
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </button>
@@ -814,11 +694,11 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                   )}
                 </div>
 
-                {/* Expanded rival detail panel */}
+                {/* Expanded dossier */}
                 {isExpanded && rival && (
                   <div style={{ background: '#080808', border: '1px solid #1f1f1f', borderTop: 'none', borderRadius: '0 0 10px 10px', padding: '16px 18px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 14 }}>
-                      {rival.age && (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+                      {rival.age !== undefined && (
                         <div style={{ background: '#111', borderRadius: 8, padding: '10px 12px' }}>
                           <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 4 }}>AGE</div>
                           <div style={{ fontSize: 16, fontWeight: 700, color: '#ddd' }}>{rival.age}</div>
@@ -874,23 +754,16 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
                       ))}
                     </div>
                     {rival.notes && (
-                      <div style={{ background: '#111', borderRadius: 8, padding: '12px', marginBottom: 10 }}>
+                      <div style={{ background: '#111', borderRadius: 8, padding: '12px', marginBottom: 12 }}>
                         <div style={{ fontSize: 9, color: '#444', letterSpacing: '0.1em', marginBottom: 6 }}>INTEL NOTES</div>
                         <div style={{ fontSize: 12, color: '#888', lineHeight: 1.6 }}>{rival.notes}</div>
                       </div>
                     )}
-                    <button onClick={() => rival && setIntelRival(rival)} style={{ fontSize: 11, color: '#D4AF37', background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.06em' }}>
-                      ✎ EDIT INTEL
-                {!player.isMe && (
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    {!player.operatorId && (
-                      <button onClick={() => { setEditId(player.id); setEditData({ weeklyHabits: player.weeklyHabits, weeklyEarnings: player.weeklyEarnings, goalsCompleted: player.goalsCompleted, focusHours: player.focusHours }); }}
-                        style={{ background: 'none', border: 'none', color: '#444', cursor: 'pointer' }} title="Manual edit">
-                        <Edit2 size={14} />
-                      </button>
+                    {!rival.age && !rival.location && !rival.instagram && !rival.monthlyRevenue && !rival.notes && (rival.customStats || []).length === 0 && (
+                      <div style={{ fontSize: 12, color: '#333', fontStyle: 'italic', marginBottom: 10 }}>No intel filed yet.</div>
                     )}
-                    <button onClick={() => deleteCompetitor(player.id)} style={{ background: 'none', border: 'none', color: '#333', cursor: 'pointer' }}>
-                      <Trash2 size={14} />
+                    <button onClick={() => setIntelRival({ ...rival })} style={{ fontSize: 11, color: '#D4AF37', background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontWeight: 700, letterSpacing: '0.06em' }}>
+                      ✎ EDIT INTEL
                     </button>
                   </div>
                 )}
@@ -908,7 +781,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
             <BarChart data={allPlayers.map(p => ({ name: p.name.slice(0, 10), points: calcPoints(p), isMe: p.isMe }))} barCategoryGap="25%">
               <XAxis dataKey="name" tick={{ fill: '#555', fontSize: 11 }} axisLine={false} tickLine={false} />
               <YAxis hide />
-              <Tooltip contentStyle={{ background: '#0d0d0d', border: '1px solid rgba(212,175,55,0.3)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [v, 'Points']} labelStyle={{ color: '#888' }} />
               <Tooltip contentStyle={{ background: '#0d0d0d', border: '1px solid rgba(212,175,55,0.3)', borderRadius: 8, fontSize: 12 }} formatter={(v: number) => [v, 'Points'] as [number, string]} labelStyle={{ color: '#888' }} />
               <Bar dataKey="points" radius={[6, 6, 0, 0]}>
                 {allPlayers.map((p, i) => <Cell key={i} fill={p.isMe ? '#D4AF37' : i === 0 ? '#00D4FF' : '#333'} />)}
@@ -918,10 +790,6 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
         </div>
       )}
 
-      {/* Points System */}
-      <div className="empire-card" style={{ borderColor: '#1a1a1a' }}>
-        <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>◆ POINTS SYSTEM</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10 }}>
       {/* Points system */}
       <div className="empire-card">
         <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 14 }}>◆ POINTS SYSTEM</div>
@@ -939,7 +807,7 @@ export default function Competition({ competitors, habits, earnings, goals, pomo
           ))}
         </div>
         <div style={{ marginTop: 12, padding: '10px', background: '#0a0a0a', borderRadius: 8, fontSize: 11, color: '#444', lineHeight: 1.6 }}>
-          💡 Use the intel panel (ℹ) on each rival to fill in detailed profile info. Click the chevron to expand their full dossier.
+          💡 Use the ℹ button on each rival to file detailed intel. Click the chevron (∨) to expand their dossier inline.
         </div>
       </div>
     </div>

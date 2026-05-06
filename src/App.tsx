@@ -12,8 +12,6 @@ import FinanceTracker from './components/FinanceTracker';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
   Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
-  CompetitorProfile, PomodoroSession
-  Page, Habit, EarningEntry, SleepEntry, JournalEntry, Goal,
   CompetitorProfile, PomodoroSession,
   Asset, Liability, BudgetCategory, Subscription, PortfolioItem,
   NetWorthSnapshot, FireSettings
