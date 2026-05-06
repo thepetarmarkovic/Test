@@ -51,7 +51,7 @@ export default function PomodoroTimer({ sessions, onChange }: Props) {
       completed: true,
       type: modeIdx === 0 ? 'work' : 'break',
     };
-    onChange(prev => [session, ...prev]);
+    onChange([session, ...sessions]);
     setIsRunning(false);
     setSeconds(totalSeconds);
   }, [sessionTask, task, modeIdx, totalSeconds, onChange]);

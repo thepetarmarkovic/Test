@@ -2,10 +2,14 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [claude/luxury-productivity-app-0lEih, main]
+    branches:
+      - claude/productivity-motivation-app-sWsNw
+      - claude/luxury-productivity-app-0lEih
+      - main
+  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -32,6 +36,8 @@ jobs:
       - run: npm run build
 
       - uses: actions/configure-pages@v4
+        with:
+          enablement: true
 
       - uses: actions/upload-pages-artifact@v3
         with:
