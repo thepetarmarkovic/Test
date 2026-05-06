@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 import { Moon, Plus, Star, Trash2, X } from 'lucide-react';
 import type { SleepEntry } from '../types';
-import { today, uid, formatDateShort, getLast30Days } from '../utils/formatters';
+import { today, uid, formatDateShort, getLastNDays } from '../utils/formatters';
 
 const QUALITY_LABELS: Record<number, string> = {
   1: 'NIGHTMARE', 2: 'ROUGH', 3: 'DECENT', 4: 'SOLID', 5: 'ELITE'
@@ -16,12 +16,21 @@ interface Props {
   onChange: (s: SleepEntry[]) => void;
 }
 
+type SleepTimeline = '7d' | '14d' | '30d' | '90d';
+const SLEEP_TIMELINES: { key: SleepTimeline; label: string; days: number }[] = [
+  { key: '7d', label: '7D', days: 7 },
+  { key: '14d', label: '14D', days: 14 },
+  { key: '30d', label: '30D', days: 30 },
+  { key: '90d', label: '90D', days: 90 },
+];
+
 export default function SleepTracker({ sleep, onChange }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const [hours, setHours] = useState(7.5);
   const [quality, setQuality] = useState<1 | 2 | 3 | 4 | 5>(4);
   const [date, setDate] = useState(today());
   const [notes, setNotes] = useState('');
+  const [sleepTimeline, setSleepTimeline] = useState<SleepTimeline>('30d');
 
   const addEntry = () => {
     const entry: SleepEntry = {
@@ -34,8 +43,8 @@ export default function SleepTracker({ sleep, onChange }: Props) {
 
   const deleteEntry = (id: string) => onChange(sleep.filter(s => s.id !== id));
 
-  const last30 = getLast30Days();
-  const chartData = last30.map(d => {
+  const timelineDays = getLastNDays(SLEEP_TIMELINES.find(t => t.key === sleepTimeline)!.days);
+  const chartData = timelineDays.map(d => {
     const entry = sleep.find(s => s.date === d);
     return {
       date: d,
@@ -45,7 +54,7 @@ export default function SleepTracker({ sleep, onChange }: Props) {
     };
   });
 
-  const tracked = sleep.filter(s => last30.includes(s.date));
+  const tracked = sleep.filter(s => timelineDays.includes(s.date));
   const avgHours = tracked.length > 0 ? tracked.reduce((s, e) => s + e.hours, 0) / tracked.length : 0;
   const avgQuality = tracked.length > 0 ? tracked.reduce((s, e) => s + e.quality, 0) / tracked.length : 0;
   const bestNight = tracked.length > 0 ? Math.max(...tracked.map(e => e.hours)) : 0;
@@ -166,8 +175,17 @@ export default function SleepTracker({ sleep, onChange }: Props) {
       {sleep.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div className="empire-card">
-            <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700, marginBottom: 16 }}>
-              30-NIGHT SLEEP LOG
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.1em', fontWeight: 700 }}>
+                SLEEP LOG
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {SLEEP_TIMELINES.map(t => (
+                  <button key={t.key} onClick={() => setSleepTimeline(t.key)} style={{ padding: '4px 10px', borderRadius: 6, border: `1px solid ${sleepTimeline === t.key ? '#7B61FF' : '#1f1f1f'}`, background: sleepTimeline === t.key ? 'rgba(123,97,255,0.1)' : 'transparent', color: sleepTimeline === t.key ? '#7B61FF' : '#444', fontSize: 10, fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <ResponsiveContainer width="100%" height={180}>
               <BarChart data={chartData} barCategoryGap="15%">
