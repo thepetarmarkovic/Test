@@ -85,17 +85,34 @@ export interface CompetitorProfile {
   weeklyPoints: number;
   achievements: Achievement[];
   isMe: boolean;
-  // Extended intel
+  // Extended intel — identity
   occupation?: string;
   age?: number;
   location?: string;
   instagram?: string;
+  twitter?: string;
   notes?: string;
+  // Financial
   monthlyRevenue?: number;
   monthlyExpenses?: number;
   netWorth?: number;
+  // Schedule & habits
   wakeTime?: string;
   sleepTime?: string;
+  dailyActivities?: string[];   // e.g. ["Gym", "Cold shower", "Reading"]
+  // Performance
+  currentStreak?: number;
+  bestWeekPoints?: number;
+  allTimePoints?: number;
+  monthlyHabits?: number;
+  weeklyFocusHours?: number;
+  // Goals & mindset
+  currentGoals?: string;
+  strengths?: string;
+  weaknesses?: string;
+  // Points history for chart  { week: "2025-W01", points: 340 }
+  pointsHistory?: { week: string; points: number }[];
+  // Freeform custom key-value
   customStats?: { label: string; value: string }[];
   lastSync?: string;
 }
