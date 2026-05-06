@@ -68,6 +68,7 @@ export interface CompetitorProfile {
   id: string;
   name: string;
   avatar: string;
+  operatorId?: string;
   weeklyHabits: number;
   weeklyEarnings: number;
   goalsCompleted: number;
@@ -75,6 +76,7 @@ export interface CompetitorProfile {
   weeklyPoints: number;
   achievements: Achievement[];
   isMe: boolean;
+  lastSync?: string;
 }
 
 export interface PomodoroSession {
@@ -86,4 +88,68 @@ export interface PomodoroSession {
   type: 'work' | 'break';
 }
 
-export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro';
+// Finance types
+export interface Asset {
+  id: string;
+  name: string;
+  category: 'cash' | 'investment' | 'property' | 'crypto' | 'vehicle' | 'other';
+  value: number;
+  date: string;
+  notes: string;
+}
+
+export interface Liability {
+  id: string;
+  name: string;
+  category: 'mortgage' | 'loan' | 'credit' | 'other';
+  value: number;
+  date: string;
+  notes: string;
+}
+
+export interface NetWorthSnapshot {
+  id: string;
+  date: string;
+  netWorth: number;
+  assets: number;
+  liabilities: number;
+}
+
+export interface BudgetCategory {
+  id: string;
+  name: string;
+  emoji: string;
+  budgeted: number;
+  spent: number;
+  color: string;
+}
+
+export interface Subscription {
+  id: string;
+  name: string;
+  emoji: string;
+  amount: number;
+  frequency: 'monthly' | 'yearly';
+  category: string;
+  active: boolean;
+  color: string;
+}
+
+export interface PortfolioItem {
+  id: string;
+  symbol: string;
+  name: string;
+  shares: number;
+  avgPrice: number;
+  currentPrice: number;
+  category: 'stock' | 'crypto' | 'etf' | 'other';
+}
+
+export interface FireSettings {
+  monthlyExpenses: number;
+  monthlySavings: number;
+  currentSavings: number;
+  expectedReturn: number;
+}
+
+export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance';

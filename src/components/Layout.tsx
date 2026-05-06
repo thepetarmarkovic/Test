@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Flame, DollarSign, Moon, BookOpen,
   Target, Trophy, Timer, ChevronLeft, ChevronRight, Zap,
-  Activity
+  Activity, TrendingUp
 } from 'lucide-react';
 import type { Page } from '../types';
 
@@ -17,6 +17,7 @@ const NAV: NavItem[] = [
   { id: 'dashboard', label: 'Command Center', icon: <LayoutDashboard size={18} /> },
   { id: 'habits', label: 'Disciplines', icon: <Flame size={18} />, accent: '#FF6B35' },
   { id: 'earnings', label: 'Earnings', icon: <DollarSign size={18} />, accent: '#00FF87' },
+  { id: 'finance', label: 'Wealth Matrix', icon: <TrendingUp size={18} />, accent: '#D4AF37' },
   { id: 'sleep', label: 'Sleep Lab', icon: <Moon size={18} />, accent: '#7B61FF' },
   { id: 'journal', label: 'Intel Log', icon: <BookOpen size={18} /> },
   { id: 'goals', label: 'Mission Goals', icon: <Target size={18} /> },

@@ -8,10 +8,13 @@ import Journal from './components/Journal';
 import Goals from './components/Goals';
 import Competition from './components/Competition';
 import PomodoroTimer from './components/PomodoroTimer';
+import FinanceTracker from './components/FinanceTracker';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
   Page, Habit, EarningEntry, SleepEntry, JournalEntry, Goal,
-  CompetitorProfile, PomodoroSession
+  CompetitorProfile, PomodoroSession,
+  Asset, Liability, BudgetCategory, Subscription, PortfolioItem,
+  NetWorthSnapshot, FireSettings
 } from './types';
 import { X } from 'lucide-react';
 
@@ -25,6 +28,18 @@ export default function App() {
   const [goals, setGoals] = useLocalStorage<Goal[]>('empire_goals', []);
   const [competitors, setCompetitors] = useLocalStorage<CompetitorProfile[]>('empire_competitors', []);
   const [pomodoro, setPomodoro] = useLocalStorage<PomodoroSession[]>('empire_pomodoro', []);
+  const [assets, setAssets] = useLocalStorage<Asset[]>('empire_assets', []);
+  const [liabilities, setLiabilities] = useLocalStorage<Liability[]>('empire_liabilities', []);
+  const [budget, setBudget] = useLocalStorage<BudgetCategory[]>('empire_budget', []);
+  const [subscriptions, setSubscriptions] = useLocalStorage<Subscription[]>('empire_subscriptions', []);
+  const [portfolio, setPortfolio] = useLocalStorage<PortfolioItem[]>('empire_portfolio', []);
+  const [netWorthHistory, setNetWorthHistory] = useLocalStorage<NetWorthSnapshot[]>('empire_nwhistory', []);
+  const [fireSettings, setFireSettings] = useLocalStorage<FireSettings>('empire_fire', {
+    monthlyExpenses: 3000,
+    monthlySavings: 1000,
+    currentSavings: 0,
+    expectedReturn: 7,
+  });
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
 
@@ -133,6 +148,24 @@ export default function App() {
         )}
         {page === 'pomodoro' && (
           <PomodoroTimer sessions={pomodoro} onChange={setPomodoro} />
+        )}
+        {page === 'finance' && (
+          <FinanceTracker
+            assets={assets}
+            liabilities={liabilities}
+            budget={budget}
+            subscriptions={subscriptions}
+            portfolio={portfolio}
+            netWorthHistory={netWorthHistory}
+            fireSettings={fireSettings}
+            onAssetsChange={setAssets}
+            onLiabilitiesChange={setLiabilities}
+            onBudgetChange={setBudget}
+            onSubscriptionsChange={setSubscriptions}
+            onPortfolioChange={setPortfolio}
+            onNetWorthHistoryChange={setNetWorthHistory}
+            onFireSettingsChange={setFireSettings}
+          />
         )}
       </Layout>
     </>
