@@ -64,6 +64,15 @@ export interface Achievement {
   icon: string;
 }
 
+export interface ExpenseEntry {
+  id: string;
+  amount: number;
+  description: string;
+  category: 'housing' | 'food' | 'transport' | 'subscriptions' | 'entertainment' | 'health' | 'business' | 'other';
+  date: string;
+  notes: string;
+}
+
 export interface CompetitorProfile {
   id: string;
   name: string;
@@ -75,6 +84,18 @@ export interface CompetitorProfile {
   weeklyPoints: number;
   achievements: Achievement[];
   isMe: boolean;
+  // Extended intel
+  occupation?: string;
+  age?: number;
+  location?: string;
+  instagram?: string;
+  notes?: string;
+  monthlyRevenue?: number;
+  monthlyExpenses?: number;
+  netWorth?: number;
+  wakeTime?: string;
+  sleepTime?: string;
+  customStats?: { label: string; value: string }[];
 }
 
 export interface PomodoroSession {

@@ -10,7 +10,7 @@ import Competition from './components/Competition';
 import PomodoroTimer from './components/PomodoroTimer';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
-  Page, Habit, EarningEntry, SleepEntry, JournalEntry, Goal,
+  Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
   CompetitorProfile, PomodoroSession
 } from './types';
 import { X } from 'lucide-react';
@@ -20,6 +20,7 @@ export default function App() {
   const [userName, setUserName] = useLocalStorage<string>('empire_username', '');
   const [habits, setHabits] = useLocalStorage<Habit[]>('empire_habits', []);
   const [earnings, setEarnings] = useLocalStorage<EarningEntry[]>('empire_earnings', []);
+  const [expenses, setExpenses] = useLocalStorage<ExpenseEntry[]>('empire_expenses', []);
   const [sleep, setSleep] = useLocalStorage<SleepEntry[]>('empire_sleep', []);
   const [journal, setJournal] = useLocalStorage<JournalEntry[]>('empire_journal', []);
   const [goals, setGoals] = useLocalStorage<Goal[]>('empire_goals', []);
@@ -108,7 +109,7 @@ export default function App() {
           <HabitTracker habits={habits} onChange={setHabits} />
         )}
         {page === 'earnings' && (
-          <EarningsTracker earnings={earnings} onChange={setEarnings} />
+          <EarningsTracker earnings={earnings} onChange={setEarnings} expenses={expenses} onExpensesChange={setExpenses} />
         )}
         {page === 'sleep' && (
           <SleepTracker sleep={sleep} onChange={setSleep} />

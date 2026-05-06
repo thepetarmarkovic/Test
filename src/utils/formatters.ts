@@ -49,6 +49,16 @@ export const getLast14Days = (): string[] => {
   return days;
 };
 
+export const getLastNDays = (n: number): string[] => {
+  const days = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().split('T')[0]);
+  }
+  return days;
+};
+
 export const uid = (): string => Math.random().toString(36).slice(2, 11);
 
 export const greetingByTime = (name: string): string => {
