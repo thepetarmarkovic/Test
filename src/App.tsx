@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import HabitTracker from './components/HabitTracker';
@@ -17,6 +17,7 @@ import type {
   NetWorthSnapshot, FireSettings
 } from './types';
 import { X } from 'lucide-react';
+import { saveSnapshot, loadSnapshot, requestPersistentStorage } from './lib/storage';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -43,6 +44,33 @@ export default function App() {
   });
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
+
+  // On mount: request persistent storage + restore from IndexedDB if localStorage was cleared
+  useEffect(() => {
+    requestPersistentStorage();
+    if (!userName) {
+      loadSnapshot().then(snapshot => {
+        if (!snapshot) return;
+        Object.entries(snapshot).forEach(([k, v]) => {
+          try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+        });
+        window.location.reload();
+      });
+    }
+  }, []);
+
+  // Auto-snapshot all data to IndexedDB 2s after any change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('empire_'));
+      const data: Record<string, unknown> = {};
+      keys.forEach(k => { try { data[k] = JSON.parse(localStorage.getItem(k)!); } catch {} });
+      saveSnapshot(data);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [habits, earnings, expenses, sleep, journal, goals, competitors, pomodoro,
+      assets, liabilities, budget, subscriptions, portfolio, netWorthHistory,
+      fireSettings, userName]);
 
   const handleSetName = () => {
     if (!nameInput.trim()) return;
