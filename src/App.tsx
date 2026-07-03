@@ -9,15 +9,18 @@ import Goals from './components/Goals';
 import Competition from './components/Competition';
 import PomodoroTimer from './components/PomodoroTimer';
 import FinanceTracker from './components/FinanceTracker';
+import MementoMori from './components/MementoMori';
+import WarBriefing from './components/WarBriefing';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
   Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
   CompetitorProfile, PomodoroSession,
   Asset, Liability, BudgetCategory, Subscription, PortfolioItem,
-  NetWorthSnapshot, FireSettings
+  NetWorthSnapshot, FireSettings, MementoSettings, BriefingSnapshot
 } from './types';
 import { X } from 'lucide-react';
 import { saveSnapshot, loadSnapshot, requestPersistentStorage } from './lib/storage';
+import { today } from './utils/formatters';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
@@ -42,6 +45,10 @@ export default function App() {
     currentSavings: 0,
     expectedReturn: 7,
   });
+  const [memento, setMemento] = useLocalStorage<MementoSettings | null>('empire_memento', null);
+  const [lastBriefing, setLastBriefing] = useLocalStorage<string>('empire_lastBriefing', '');
+  const [briefingSnapshot, setBriefingSnapshot] = useLocalStorage<BriefingSnapshot | null>('empire_briefingSnapshot', null);
+  const [briefingOpen, setBriefingOpen] = useState(() => !!userName && lastBriefing !== today());
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
 
@@ -70,12 +77,19 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [habits, earnings, expenses, sleep, journal, goals, competitors, pomodoro,
       assets, liabilities, budget, subscriptions, portfolio, netWorthHistory,
-      fireSettings, userName]);
+      fireSettings, userName, memento, lastBriefing, briefingSnapshot]);
 
   const handleSetName = () => {
     if (!nameInput.trim()) return;
     setUserName(nameInput.trim().toUpperCase());
     setShowNamePrompt(false);
+    if (lastBriefing !== today()) setBriefingOpen(true);
+  };
+
+  const dismissBriefing = (snap: BriefingSnapshot) => {
+    setBriefingSnapshot(snap);
+    setLastBriefing(today());
+    setBriefingOpen(false);
   };
 
   return (
@@ -146,6 +160,7 @@ export default function App() {
             pomodoro={pomodoro}
             userName={userName}
             onNavigate={p => setPage(p as Page)}
+            onOpenBriefing={() => setBriefingOpen(true)}
           />
         )}
         {page === 'habits' && (
@@ -181,6 +196,9 @@ export default function App() {
         {page === 'pomodoro' && (
           <PomodoroTimer sessions={pomodoro} onChange={setPomodoro} />
         )}
+        {page === 'memento' && (
+          <MementoMori settings={memento} onChange={setMemento} />
+        )}
         {page === 'finance' && (
           <FinanceTracker
             assets={assets}
@@ -200,6 +218,23 @@ export default function App() {
           />
         )}
       </Layout>
+
+      {/* Morning War Briefing — full-screen daily takeover */}
+      {briefingOpen && !showNamePrompt && (
+        <WarBriefing
+          userName={userName}
+          habits={habits}
+          earnings={earnings}
+          goals={goals}
+          pomodoro={pomodoro}
+          sleep={sleep}
+          journal={journal}
+          competitors={competitors}
+          memento={memento}
+          previousSnapshot={briefingSnapshot}
+          onDismiss={dismissBriefing}
+        />
+      )}
     </>
   );
 }

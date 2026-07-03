@@ -3,7 +3,7 @@ import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
   RadialBarChart, RadialBar
 } from 'recharts';
-import { TrendingUp, Flame, Moon, Target, Zap, ArrowUpRight } from 'lucide-react';
+import { TrendingUp, Flame, Moon, Target, Zap, ArrowUpRight, Sunrise } from 'lucide-react';
 import type { Habit, EarningEntry, SleepEntry, Goal, PomodoroSession } from '../types';
 import { formatCurrency, greetingByTime, getLast7Days, dayOfWeekShort, today } from '../utils/formatters';
 
@@ -30,6 +30,7 @@ interface Props {
   pomodoro: PomodoroSession[];
   userName: string;
   onNavigate: (p: string) => void;
+  onOpenBriefing: () => void;
 }
 
 function StatCard({ label, value, sub, icon, color, onClick }: {
@@ -66,7 +67,7 @@ function StatCard({ label, value, sub, icon, color, onClick }: {
   );
 }
 
-export default function Dashboard({ habits, earnings, sleep, goals, pomodoro, userName, onNavigate }: Props) {
+export default function Dashboard({ habits, earnings, sleep, goals, pomodoro, userName, onNavigate, onOpenBriefing }: Props) {
   const quoteIdx = useMemo(() => Math.floor(Date.now() / 86400000) % QUOTES.length, []);
   const quote = QUOTES[quoteIdx];
 
@@ -104,20 +105,25 @@ export default function Dashboard({ habits, earnings, sleep, goals, pomodoro, us
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }} className="animate-fade-up">
       {/* Header */}
-      <div>
-        <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.14em', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
-          PROTOCOL ACTIVE — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 11, color: '#555', letterSpacing: '0.14em', marginBottom: 6, fontFamily: 'JetBrains Mono, monospace' }}>
+            PROTOCOL ACTIVE — {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).toUpperCase()}
+          </div>
+          <h1
+            style={{
+              fontSize: 32, fontWeight: 900, letterSpacing: '-0.02em',
+              background: 'linear-gradient(135deg, #ffffff 0%, #888 100%)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+              margin: 0,
+            }}
+          >
+            {greetingByTime(userName || 'OPERATOR')}
+          </h1>
         </div>
-        <h1
-          style={{
-            fontSize: 32, fontWeight: 900, letterSpacing: '-0.02em',
-            background: 'linear-gradient(135deg, #ffffff 0%, #888 100%)',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-            margin: 0,
-          }}
-        >
-          {greetingByTime(userName || 'OPERATOR')}
-        </h1>
+        <button onClick={onOpenBriefing} className="btn-ghost" style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          <Sunrise size={14} /> VIEW BRIEFING
+        </button>
       </div>
 
       {/* Quote */}

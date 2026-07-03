@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   LayoutDashboard, Flame, DollarSign, Moon, BookOpen,
   Target, Trophy, Timer, ChevronLeft, ChevronRight, Zap,
-  Activity, TrendingUp
+  Activity, TrendingUp, Skull
 } from 'lucide-react';
 import type { Page } from '../types';
 
@@ -23,6 +23,7 @@ const NAV: NavItem[] = [
   { id: 'goals', label: 'Mission Goals', icon: <Target size={18} /> },
   { id: 'competition', label: 'Arena', icon: <Trophy size={18} />, accent: '#D4AF37' },
   { id: 'pomodoro', label: 'Focus Protocol', icon: <Timer size={18} />, accent: '#00D4FF' },
+  { id: 'memento', label: 'Memento Mori', icon: <Skull size={18} />, accent: '#FF4141' },
 ];
 
 interface Props {

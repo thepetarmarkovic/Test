@@ -193,4 +193,14 @@ export interface FireSettings {
   expectedReturn: number;
 }
 
-export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance';
+export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento';
+
+export interface MementoSettings {
+  birthDate: string;       // 'yyyy-mm-dd'
+  lifeExpectancy: number;  // years
+}
+
+export interface BriefingSnapshot {
+  date: string;
+  standings: { id: string; name: string; points: number }[];
+}
