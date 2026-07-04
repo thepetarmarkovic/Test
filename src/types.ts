@@ -193,7 +193,19 @@ export interface FireSettings {
   expectedReturn: number;
 }
 
-export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento';
+export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento' | 'showroom';
+
+export type ExhibitKind = 'panamera' | 'motorcycle' | 'exitdoor';
+
+export interface ExhibitConfig {
+  id: string;
+  title: string;
+  kind: ExhibitKind;
+  target: number;                             // amount that means 100%
+  source: 'lifetime' | 'monthly' | 'goal';    // where progress is read from
+  goalId?: string;                            // when source === 'goal'
+  completedAt?: string;                       // set once, never removed
+}
 
 export interface MementoSettings {
   birthDate: string;       // 'yyyy-mm-dd'

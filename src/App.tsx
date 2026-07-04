@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import HabitTracker from './components/HabitTracker';
@@ -12,6 +12,8 @@ import FinanceTracker from './components/FinanceTracker';
 import MementoMori from './components/MementoMori';
 import WarBriefing from './components/WarBriefing';
 import BootSequence from './components/BootSequence';
+
+const Showroom = lazy(() => import('./components/Showroom'));
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
   Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
@@ -200,6 +202,15 @@ export default function App() {
         )}
         {page === 'memento' && (
           <MementoMori settings={memento} onChange={setMemento} />
+        )}
+        {page === 'showroom' && (
+          <Suspense fallback={
+            <div style={{ textAlign: 'center', padding: 60, color: '#555', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, letterSpacing: '0.1em' }}>
+              OPENING THE SHOWROOM…
+            </div>
+          }>
+            <Showroom goals={goals} earnings={earnings} />
+          </Suspense>
         )}
         {page === 'finance' && (
           <FinanceTracker
