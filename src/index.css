@@ -260,6 +260,57 @@ body {
   50% { opacity: 0.3; }
 }
 
+/* Boot sequence */
+@keyframes bootFlicker {
+  0% { opacity: 0; }
+  8% { opacity: 0.9; }
+  12% { opacity: 0.1; }
+  20% { opacity: 1; }
+  26% { opacity: 0.4; }
+  34% { opacity: 1; }
+  42% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+@keyframes bootLine {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes bootScan {
+  from { top: -2px; }
+  to { top: 100%; }
+}
+
+@keyframes rotate360 {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rotate360rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes bootFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Money ticker odometer */
+.odo-digit {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: top;
+}
+.odo-strip {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .animate-fade-up {
   animation: fadeSlideUp 0.3s ease-out both;
 }

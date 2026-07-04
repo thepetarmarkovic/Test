@@ -6,6 +6,7 @@ import {
 import { TrendingUp, Flame, Moon, Target, Zap, ArrowUpRight, Sunrise } from 'lucide-react';
 import type { Habit, EarningEntry, SleepEntry, Goal, PomodoroSession } from '../types';
 import { formatCurrency, greetingByTime, getLast7Days, dayOfWeekShort, today } from '../utils/formatters';
+import MoneyTicker from './MoneyTicker';
 
 const QUOTES = [
   { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
@@ -125,6 +126,9 @@ export default function Dashboard({ habits, earnings, sleep, goals, pomodoro, us
           <Sunrise size={14} /> VIEW BRIEFING
         </button>
       </div>
+
+      {/* Live money counter */}
+      <MoneyTicker earnings={earnings} />
 
       {/* Quote */}
       <div

@@ -11,6 +11,7 @@ import PomodoroTimer from './components/PomodoroTimer';
 import FinanceTracker from './components/FinanceTracker';
 import MementoMori from './components/MementoMori';
 import WarBriefing from './components/WarBriefing';
+import BootSequence from './components/BootSequence';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
   Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
@@ -49,6 +50,7 @@ export default function App() {
   const [lastBriefing, setLastBriefing] = useLocalStorage<string>('empire_lastBriefing', '');
   const [briefingSnapshot, setBriefingSnapshot] = useLocalStorage<BriefingSnapshot | null>('empire_briefingSnapshot', null);
   const [briefingOpen, setBriefingOpen] = useState(() => !!userName && lastBriefing !== today());
+  const [booting, setBooting] = useState(true);
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
 
@@ -220,7 +222,7 @@ export default function App() {
       </Layout>
 
       {/* Morning War Briefing — full-screen daily takeover */}
-      {briefingOpen && !showNamePrompt && (
+      {briefingOpen && !showNamePrompt && !booting && (
         <WarBriefing
           userName={userName}
           habits={habits}
@@ -233,6 +235,17 @@ export default function App() {
           memento={memento}
           previousSnapshot={briefingSnapshot}
           onDismiss={dismissBriefing}
+        />
+      )}
+
+      {/* Boot sequence — first paint on every app open */}
+      {booting && (
+        <BootSequence
+          userName={userName}
+          habits={habits}
+          earnings={earnings}
+          sleep={sleep}
+          onDone={() => setBooting(false)}
         />
       )}
     </>
