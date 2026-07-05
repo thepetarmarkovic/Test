@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, Flame, DollarSign, Moon, BookOpen,
   Target, Trophy, Timer, ChevronLeft, ChevronRight, Zap,
-  Activity, TrendingUp, Skull, Car, Menu, X
+  Activity, TrendingUp, Skull, Car, Menu, X, Sparkles, Building2
 } from 'lucide-react';
 import type { Page } from '../types';
 
@@ -23,6 +23,8 @@ const NAV: NavItem[] = [
   { id: 'goals', label: 'Mission Goals', icon: <Target size={18} /> },
   { id: 'competition', label: 'Arena', icon: <Trophy size={18} />, accent: '#D4AF37' },
   { id: 'showroom', label: 'The Showroom', icon: <Car size={18} />, accent: '#FFD700' },
+  { id: 'skyline', label: 'Empire Skyline', icon: <Building2 size={18} />, accent: '#00FF87' },
+  { id: 'wrapped', label: 'Wrapped', icon: <Sparkles size={18} />, accent: '#D4AF37' },
   { id: 'pomodoro', label: 'Focus Protocol', icon: <Timer size={18} />, accent: '#00D4FF' },
   { id: 'memento', label: 'Memento Mori', icon: <Skull size={18} />, accent: '#FF4141' },
 ];

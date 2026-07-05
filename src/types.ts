@@ -193,7 +193,37 @@ export interface FireSettings {
   expectedReturn: number;
 }
 
-export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento' | 'showroom';
+export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento' | 'showroom' | 'wrapped' | 'skyline';
+
+export interface WrappedStats {
+  earnings: number;
+  habitCompletions: number;
+  focusHours: number;
+  journalEntries: number;
+  sleepScore: number;       // avg quality 0-5, 0 if none
+  activeDays: number;
+  biggestWin?: { amount: number; source: string; date: string };
+}
+
+export interface WrappedRecord {
+  id: string;                              // e.g. 'weekly-2026-06-29'
+  kind: 'weekly' | 'monthly' | 'yearly';
+  startDate: string;                       // inclusive ISO
+  endDate: string;                         // inclusive ISO
+  label: string;                           // human period label
+  stats: WrappedStats;
+  points: number;
+  createdAt: string;
+}
+
+export interface DivisionConfig {
+  key: string;
+  label: string;
+  state: 'active' | 'construction';
+  categories: EarningEntry['category'][];  // which revenue counts for this tower
+  floorValue: number;                      // $ per lit floor
+  maxFloors: number;
+}
 
 export type ExhibitKind = 'panamera' | 'motorcycle' | 'exitdoor';
 

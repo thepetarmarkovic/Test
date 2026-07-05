@@ -357,6 +357,25 @@ body {
   }
 }
 
+/* Empire Skyline ambience */
+@keyframes skyTwinkle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.15; }
+}
+.sky-twinkle { animation: skyTwinkle 4s ease-in-out infinite; }
+
+@keyframes skyCloud {
+  from { transform: translateX(-160px); }
+  to { transform: translateX(960px); }
+}
+.sky-cloud { animation: skyCloud 100s linear infinite; }
+
+@keyframes skyFlicker {
+  0%, 91%, 95%, 100% { opacity: 0.88; }
+  93% { opacity: 0.15; }
+}
+.sky-flicker { animation: skyFlicker 7s linear infinite; }
+
 /* Photo exhibit idle sway */
 @keyframes panelSway {
   0%, 100% { transform: perspective(1100px) rotateY(-2.5deg) rotateX(0.5deg); }

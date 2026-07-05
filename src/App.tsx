@@ -12,6 +12,8 @@ import FinanceTracker from './components/FinanceTracker';
 import MementoMori from './components/MementoMori';
 import WarBriefing from './components/WarBriefing';
 import BootSequence from './components/BootSequence';
+import Wrapped from './components/Wrapped';
+import Skyline from './components/Skyline';
 
 const Showroom = lazy(() => import('./components/Showroom'));
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -202,6 +204,19 @@ export default function App() {
         )}
         {page === 'memento' && (
           <MementoMori settings={memento} onChange={setMemento} />
+        )}
+        {page === 'wrapped' && (
+          <Wrapped
+            habits={habits}
+            earnings={earnings}
+            sleep={sleep}
+            journal={journal}
+            pomodoro={pomodoro}
+            userName={userName}
+          />
+        )}
+        {page === 'skyline' && (
+          <Skyline earnings={earnings} />
         )}
         {page === 'showroom' && (
           <Suspense fallback={
