@@ -297,6 +297,66 @@ body {
   to { opacity: 0; }
 }
 
+/* Page content container */
+.page-pad {
+  padding: 32px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Mobile drawer slide-in */
+@keyframes drawerIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* ---- Mobile responsiveness ---------------------------------------------
+   Components use inline style grids; the attribute selectors below collapse
+   fixed column counts on small screens (inline styles lose to !important). */
+@media (max-width: 768px) {
+  .page-pad { padding: 16px 12px 56px; }
+  .empire-card { padding: 14px; }
+  .modal-box {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  h1 { font-size: 23px !important; }
+  .stat-number { font-size: 32px; }
+
+  [style*="grid-template-columns: 1fr 1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns: repeat(3, 1fr)"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  [style*="grid-template-columns: repeat(6, 1fr)"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Page header rows (title + action buttons) wrap instead of overflowing */
+  .animate-fade-up > div:first-child,
+  .animate-fade-up > div:first-child > div {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  /* Any space-between row (card headers with action buttons) may wrap */
+  [style*="justify-content: space-between"] {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Cards inside wrapping flex rows (dashboard stat tiles) get a sane
+     minimum width so they fall 2-up instead of squeezing into slivers */
+  [style*="flex-wrap: wrap"] > .empire-card {
+    min-width: 150px !important;
+  }
+}
+
 /* Photo exhibit idle sway */
 @keyframes panelSway {
   0%, 100% { transform: perspective(1100px) rotateY(-2.5deg) rotateX(0.5deg); }
