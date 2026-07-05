@@ -357,6 +357,14 @@ body {
   }
 }
 
+/* Vault hint — barely-there breathing chevron */
+@keyframes vaultHint {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50% { opacity: 0.85; transform: translateY(-3px); }
+}
+.vault-hint { animation: vaultHint 3.2s ease-in-out infinite; }
+.vault-hint:hover { opacity: 1 !important; animation-play-state: paused; color: #D4AF37 !important; }
+
 /* Flex Room slow reveal */
 @keyframes flexFadeIn {
   from { opacity: 0; filter: brightness(0.3); }

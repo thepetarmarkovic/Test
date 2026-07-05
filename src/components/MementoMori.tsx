@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Skull, Edit2, X } from 'lucide-react';
+import { Skull, Edit2, X, ChevronUp } from 'lucide-react';
 import type { MementoSettings } from '../types';
 import { validateMemento, computeLifeMath } from '../lib/memento';
 
@@ -152,7 +152,7 @@ export default function MementoMori({ settings, onChange, onUnlockFlex }: Props)
           e.currentTarget.setPointerCapture(e.pointerId);
         }}
         onPointerUp={e => {
-          if (gestureY.current !== null && gestureY.current - e.clientY > 60) onUnlockFlex();
+          if (gestureY.current !== null && gestureY.current - e.clientY > 40) onUnlockFlex();
           gestureY.current = null;
         }}
       >
@@ -163,6 +163,21 @@ export default function MementoMori({ settings, onChange, onUnlockFlex }: Props)
           </div>
         ))}
       </div>
+
+      {/* Discreet doorway to the vault */}
+      <button
+        onClick={onUnlockFlex}
+        title="Swipe up on the counters — or tap here"
+        style={{
+          alignSelf: 'center', marginTop: -12, background: 'none', border: 'none',
+          cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center',
+          gap: 2, color: '#6b5a26', padding: 6,
+        }}
+        className="vault-hint"
+      >
+        <ChevronUp size={16} />
+        <span style={{ fontSize: 8, letterSpacing: '0.3em', fontFamily: 'JetBrains Mono, monospace' }}>THE VAULT</span>
+      </button>
 
       {/* Progress + poetic line */}
       <div className="empire-card" style={{ borderColor: 'rgba(255,65,65,0.15)' }}>
