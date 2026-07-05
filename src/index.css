@@ -357,6 +357,12 @@ body {
   }
 }
 
+/* Flex Room slow reveal */
+@keyframes flexFadeIn {
+  from { opacity: 0; filter: brightness(0.3); }
+  to { opacity: 1; filter: brightness(1); }
+}
+
 /* Empire Skyline ambience */
 @keyframes skyTwinkle {
   0%, 100% { opacity: 0.9; }

@@ -14,6 +14,7 @@ import WarBriefing from './components/WarBriefing';
 import BootSequence from './components/BootSequence';
 import Wrapped from './components/Wrapped';
 import Skyline from './components/Skyline';
+import FlexRoom from './components/FlexRoom';
 
 const Showroom = lazy(() => import('./components/Showroom'));
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -55,6 +56,7 @@ export default function App() {
   const [briefingSnapshot, setBriefingSnapshot] = useLocalStorage<BriefingSnapshot | null>('empire_briefingSnapshot', null);
   const [briefingOpen, setBriefingOpen] = useState(() => !!userName && lastBriefing !== today());
   const [booting, setBooting] = useState(true);
+  const [flexOpen, setFlexOpen] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
 
@@ -203,7 +205,7 @@ export default function App() {
           <PomodoroTimer sessions={pomodoro} onChange={setPomodoro} />
         )}
         {page === 'memento' && (
-          <MementoMori settings={memento} onChange={setMemento} />
+          <MementoMori settings={memento} onChange={setMemento} onUnlockFlex={() => setFlexOpen(true)} />
         )}
         {page === 'wrapped' && (
           <Wrapped
@@ -261,6 +263,16 @@ export default function App() {
           memento={memento}
           previousSnapshot={briefingSnapshot}
           onDismiss={dismissBriefing}
+        />
+      )}
+
+      {/* The Flex Room — hidden, unlocked by swiping up on the memento counter */}
+      {flexOpen && (
+        <FlexRoom
+          earnings={earnings}
+          pomodoro={pomodoro}
+          goals={goals}
+          onClose={() => setFlexOpen(false)}
         />
       )}
 

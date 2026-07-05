@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Plus, Edit2, Trash2, X, Search, ArrowLeft } from 'lucide-react';
+import { BookOpen, Plus, Edit2, Trash2, X, Search, ArrowLeft, Gem } from 'lucide-react';
 import type { JournalEntry } from '../types';
 import { today, uid, formatDate } from '../utils/formatters';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 
 const MOODS: { id: JournalEntry['mood']; label: string; emoji: string; color: string }[] = [
   { id: 'crushing', label: 'CRUSHING IT', emoji: '🔥', color: '#00FF87' },
@@ -37,6 +38,7 @@ export default function Journal({ entries, onChange }: Props) {
   const [search, setSearch] = useState('');
   const [filterMood, setFilterMood] = useState<JournalEntry['mood'] | 'all'>('all');
   const [readingEntry, setReadingEntry] = useState<JournalEntry | null>(null);
+  const [originStone, setOriginStone] = useLocalStorage<JournalEntry | null>('empire_originStone', null);
 
   const save = () => {
     if (!content.trim()) return;
@@ -105,6 +107,19 @@ export default function Journal({ entries, onChange }: Props) {
             <ArrowLeft size={14} /> BACK TO LOG
           </button>
           <div style={{ flex: 1 }} />
+          <button
+            onClick={() => setOriginStone({ ...readingEntry })}
+            title="Enshrine as your Origin Stone"
+            style={{
+              background: originStone?.id === readingEntry.id ? 'rgba(212,175,55,0.1)' : 'none',
+              border: `1px solid ${originStone?.id === readingEntry.id ? 'rgba(212,175,55,0.45)' : '#1f1f1f'}`,
+              color: originStone?.id === readingEntry.id ? '#D4AF37' : '#555',
+              cursor: 'pointer', padding: '8px 14px', borderRadius: 8, fontSize: 12,
+              display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700,
+            }}
+          >
+            <Gem size={12} /> {originStone?.id === readingEntry.id ? 'ENSHRINED' : 'ENSHRINE'}
+          </button>
           <button onClick={() => startEdit(readingEntry)} style={{ background: 'none', border: '1px solid #1f1f1f', color: '#555', cursor: 'pointer', padding: '8px 14px', borderRadius: 8, fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
             <Edit2 size={12} /> EDIT
           </button>

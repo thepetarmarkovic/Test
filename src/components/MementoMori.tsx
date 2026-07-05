@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { Skull, Edit2, X } from 'lucide-react';
 import type { MementoSettings } from '../types';
 import { validateMemento, computeLifeMath } from '../lib/memento';
@@ -6,6 +6,7 @@ import { validateMemento, computeLifeMath } from '../lib/memento';
 interface Props {
   settings: MementoSettings | null;
   onChange: (s: MementoSettings) => void;
+  onUnlockFlex: () => void;
 }
 
 function LifeGrid({ weeksLived, totalWeeks, overtime }: { weeksLived: number; totalWeeks: number; overtime: boolean }) {
@@ -47,11 +48,12 @@ function LifeGrid({ weeksLived, totalWeeks, overtime }: { weeksLived: number; to
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>{rows}</div>;
 }
 
-export default function MementoMori({ settings, onChange }: Props) {
+export default function MementoMori({ settings, onChange, onUnlockFlex }: Props) {
   const [editing, setEditing] = useState(false);
   const [dobInput, setDobInput] = useState(settings?.birthDate ?? '');
   const [leInput, setLeInput] = useState(settings?.lifeExpectancy ?? 80);
   const [error, setError] = useState('');
+  const gestureY = useRef<number | null>(null);
 
   const showSetup = !settings || editing;
 
@@ -142,8 +144,18 @@ export default function MementoMori({ settings, onChange }: Props) {
         </button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+      {/* Stats — swipe UP on this counter row to enter a hidden place */}
+      <div
+        style={{ display: 'flex', gap: 14, flexWrap: 'wrap', touchAction: 'pan-x', userSelect: 'none' }}
+        onPointerDown={e => {
+          gestureY.current = e.clientY;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerUp={e => {
+          if (gestureY.current !== null && gestureY.current - e.clientY > 60) onUnlockFlex();
+          gestureY.current = null;
+        }}
+      >
         {stats.map(s => (
           <div key={s.label} className="empire-card" style={{ flex: 1, minWidth: 150 }}>
             <div style={{ fontSize: 26, fontWeight: 900, color: s.color, fontFamily: 'JetBrains Mono, monospace', marginBottom: 4 }}>{s.value}</div>
