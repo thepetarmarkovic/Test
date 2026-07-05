@@ -297,6 +297,15 @@ body {
   to { opacity: 0; }
 }
 
+/* Photo exhibit idle sway */
+@keyframes panelSway {
+  0%, 100% { transform: perspective(1100px) rotateY(-2.5deg) rotateX(0.5deg); }
+  50% { transform: perspective(1100px) rotateY(2.5deg) rotateX(-0.5deg); }
+}
+.animate-sway {
+  animation: panelSway 9s ease-in-out infinite;
+}
+
 /* Money ticker odometer */
 .odo-digit {
   display: inline-block;

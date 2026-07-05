@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { ExhibitKind } from '../types';
 
 // ---------------------------------------------------------------------------
@@ -47,10 +49,11 @@ function buildPanamera(scene: THREE.Scene, stage: THREE.Group): BuildResult {
   const fog = new THREE.FogExp2(0x0a0a0d, 0.18);
   scene.fog = fog;
 
-  const paint = mat(0x2a2b33, { metalness: 0.9, roughness: 0.28 });
-  const glassM = mat(0x0a0e12, { metalness: 0.0, roughness: 0.08 });
-  const tyreM = mat(0x0a0a0c, { metalness: 0.1, roughness: 0.9 });
-  const rimM = mat(0x9a9aa2, { metalness: 0.95, roughness: 0.25 });
+  const paint = mat(0x565b66, { metalness: 0.9, roughness: 0.25 });
+  const glassM = mat(0x11161c, { metalness: 0.0, roughness: 0.06 });
+  const tyreM = mat(0x101012, { metalness: 0.1, roughness: 0.9 });
+  const rimM = mat(0xb8b8c2, { metalness: 0.95, roughness: 0.2 });
+  const hubM = mat(0x1a1a1e, { metalness: 0.6, roughness: 0.4 });
 
   // Side profile (x = length, y = height), extruded across z = width.
   const body = new THREE.Shape();
@@ -84,16 +87,24 @@ function buildPanamera(scene: THREE.Scene, stage: THREE.Group): BuildResult {
   roofGeo.translate(0, 0, -0.42);
   stage.add(new THREE.Mesh(roofGeo, glassM));
 
-  // Wheels: tyre + rim + hub
+  // Wheels: torus tyre, five-spoke rim, dark hub cap
   for (const [x, z] of [[0.97, 0.52], [0.97, -0.52], [-0.97, 0.52], [-0.97, -0.52]] as const) {
-    const tyre = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.22, 24), tyreM);
-    tyre.rotation.x = Math.PI / 2;
-    tyre.position.set(x, 0.3, z);
-    stage.add(tyre);
-    const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.23, 12), rimM);
-    rim.rotation.x = Math.PI / 2;
-    rim.position.set(x, 0.3, z);
-    stage.add(rim);
+    const wheel = new THREE.Group();
+    wheel.position.set(x, 0.3, z);
+    const tyre = new THREE.Mesh(new THREE.TorusGeometry(0.235, 0.075, 12, 28), tyreM);
+    wheel.add(tyre);
+    for (let i = 0; i < 5; i++) {
+      const spoke = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.4, 0.05), rimM);
+      spoke.rotation.z = (i / 5) * Math.PI;
+      wheel.add(spoke);
+    }
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.1, 20, 1, true), rimM);
+    barrel.rotation.x = Math.PI / 2;
+    wheel.add(barrel);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 12), hubM);
+    hub.rotation.x = Math.PI / 2;
+    wheel.add(hub);
+    stage.add(wheel);
   }
 
   // Mirrors
@@ -199,22 +210,30 @@ function buildMotorcycle(_scene: THREE.Scene, stage: THREE.Group): BuildResult {
   const seat = box(0.5, 0.08, 0.26, darkM); seat.position.set(-0.36, 0.75, 0); seat.rotation.z = 0.08; stage.add(seat);
   const tailUnit = box(0.28, 0.1, 0.2, paintR); tailUnit.position.set(-0.66, 0.82, 0); tailUnit.rotation.z = 0.18; stage.add(tailUnit);
 
-  // Cover: draped dome that lifts up and away — wheels appear first, tank last.
-  const tarp = new THREE.Mesh(
-    new THREE.SphereGeometry(1, 22, 14),
-    mat(0x1c1c22, { metalness: 0.05, roughness: 1 })
-  );
-  tarp.scale.set(1.12, 0.82, 0.52);
-  tarp.position.set(0, 0.42, 0);
+  // Cover: extruded bike-shaped shroud — tall at the bars, humped at the tail.
+  // Reads as "motorcycle under a cloth", not a blob.
+  const cover = new THREE.Shape();
+  cover.moveTo(-0.98, 0.0);
+  cover.quadraticCurveTo(-1.06, 0.62, -0.68, 0.92);   // tail hump
+  cover.quadraticCurveTo(-0.36, 0.8, -0.06, 0.84);    // saddle dip
+  cover.quadraticCurveTo(0.22, 0.95, 0.44, 1.12);     // rise to handlebars
+  cover.quadraticCurveTo(0.64, 1.06, 0.74, 0.72);     // drop over the front
+  cover.quadraticCurveTo(0.98, 0.34, 1.0, 0.0);       // over the front wheel
+  cover.lineTo(-0.98, 0.0);
+  const tarpGeo = new THREE.ExtrudeGeometry(cover, {
+    depth: 0.42, bevelEnabled: true, bevelThickness: 0.1, bevelSize: 0.13, bevelSegments: 5, curveSegments: 18,
+  });
+  tarpGeo.translate(0, 0, -0.21);
+  const tarp = new THREE.Mesh(tarpGeo, mat(0x26262e, { metalness: 0.05, roughness: 0.95 }));
   stage.add(tarp);
 
   return {
     update(progress) {
       const p = Math.min(progress, 1);
       tarp.visible = p < 0.999;
-      tarp.position.y = 0.42 + p * 2.1;
-      tarp.position.x = -p * 0.55;
-      tarp.rotation.z = p * 0.5;
+      tarp.position.y = p * 2.0;
+      tarp.position.x = -p * 0.6;
+      tarp.rotation.z = p * 0.45;
     },
   };
 }
@@ -294,6 +313,65 @@ function buildExitDoor(_scene: THREE.Scene, stage: THREE.Group): BuildResult {
   };
 }
 
+// --- CUSTOM UPLOADED MODEL: user-generated .glb (photo→3D), normalized to
+// stage scale; keeps the per-kind reveal (fog for car, lifting cover for bike).
+function buildCustom(scene: THREE.Scene, stage: THREE.Group, kind: ExhibitKind, glb: Blob): BuildResult {
+  const fog = kind === 'panamera' ? new THREE.FogExp2(0x0a0a0d, 0.18) : null;
+  if (fog) scene.fog = fog;
+  let cover: THREE.Mesh | null = null;
+  let coverH = 1;
+
+  const url = URL.createObjectURL(glb);
+  new GLTFLoader().load(
+    url,
+    gltf => {
+      URL.revokeObjectURL(url);
+      const model = gltf.scene;
+      const pre = new THREE.Box3().setFromObject(model);
+      const size = pre.getSize(new THREE.Vector3());
+      const scale = 2.6 / Math.max(size.x, size.z, 0.001);
+      model.scale.setScalar(scale);
+      const post = new THREE.Box3().setFromObject(model);
+      const center = post.getCenter(new THREE.Vector3());
+      model.position.x -= center.x;
+      model.position.z -= center.z;
+      model.position.y -= post.min.y;
+      model.traverse(o => {
+        if ((o as THREE.Mesh).isMesh) { o.castShadow = true; o.receiveShadow = true; }
+      });
+      stage.add(model);
+
+      if (kind === 'motorcycle') {
+        const b = new THREE.Box3().setFromObject(model);
+        const s = b.getSize(new THREE.Vector3());
+        coverH = s.y * 1.12;
+        cover = new THREE.Mesh(
+          new RoundedBoxGeometry(s.x * 1.18, coverH, s.z * 1.35, 4, Math.min(s.y, s.z) * 0.3),
+          mat(0x1e1e26, { metalness: 0.05, roughness: 0.95 })
+        );
+        cover.position.y = coverH / 2 - 0.02;
+        cover.castShadow = true;
+        stage.add(cover);
+      }
+    },
+    undefined,
+    () => URL.revokeObjectURL(url)
+  );
+
+  return {
+    update(progress) {
+      const p = Math.min(progress, 1);
+      if (fog) fog.density = 0.015 + (1 - p) * 0.15;
+      if (cover) {
+        cover.visible = p < 0.999;
+        cover.position.x = -p * 0.6;
+        cover.rotation.z = p * 0.45;
+        cover.position.y = coverH / 2 - 0.02 + p * 2.0;
+      }
+    },
+  };
+}
+
 const EXHIBITS: Record<ExhibitKind, KindMeta> = {
   panamera: {
     rotate: true,
@@ -315,7 +393,7 @@ const EXHIBITS: Record<ExhibitKind, KindMeta> = {
   },
 };
 
-export function createShowroom(container: HTMLElement, kind: ExhibitKind): ShowroomHandle {
+export function createShowroom(container: HTMLElement, kind: ExhibitKind, customGlb?: Blob): ShowroomHandle {
   const meta = EXHIBITS[kind];
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(0x050506);
@@ -327,7 +405,9 @@ export function createShowroom(container: HTMLElement, kind: ExhibitKind): Showr
   const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMappingExposure = 1.35;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   container.appendChild(renderer.domElement);
   renderer.domElement.style.width = '100%';
   renderer.domElement.style.height = '100%';
@@ -337,7 +417,7 @@ export function createShowroom(container: HTMLElement, kind: ExhibitKind): Showr
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environment = envTex;
-  scene.environmentIntensity = 0.45;
+  scene.environmentIntensity = 0.85;
   pmrem.dispose();
 
   const resize = () => {
@@ -356,13 +436,17 @@ export function createShowroom(container: HTMLElement, kind: ExhibitKind): Showr
     new THREE.MeshStandardMaterial({ color: 0x0d0d10, metalness: 0.5, roughness: 0.4 })
   );
   floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
   scene.add(floor);
 
-  const key = new THREE.SpotLight(0xfff3d6, 110, 30, 0.6, 0.65);
+  const key = new THREE.SpotLight(0xfff3d6, 130, 30, 0.6, 0.65);
   key.position.set(0, 7, 2);
   key.target.position.set(0, 0.4, 0);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.bias = -0.0004;
   scene.add(key, key.target);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.35));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
   const fill = new THREE.SpotLight(0xaaccff, 30, 25, 0.8, 1);
   fill.position.set(4.5, 3, 4.5);
   fill.target.position.set(0, 0.5, 0);
@@ -373,7 +457,15 @@ export function createShowroom(container: HTMLElement, kind: ExhibitKind): Showr
 
   const stage = new THREE.Group();
   scene.add(stage);
-  const exhibit = meta.build(scene, stage);
+  const exhibit = customGlb && kind !== 'exitdoor'
+    ? buildCustom(scene, stage, kind, customGlb)
+    : meta.build(scene, stage);
+  stage.traverse(obj => {
+    if ((obj as THREE.Mesh).isMesh) {
+      obj.castShadow = true;
+      obj.receiveShadow = true;
+    }
+  });
 
   let targetProgress = 0;
   let shown = 0;

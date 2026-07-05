@@ -205,6 +205,8 @@ export interface ExhibitConfig {
   source: 'lifetime' | 'monthly' | 'goal';    // where progress is read from
   goalId?: string;                            // when source === 'goal'
   completedAt?: string;                       // set once, never removed
+  hasImage?: boolean;                         // photo stored in asset DB under exh-img-<id>
+  hasModel?: boolean;                         // .glb stored in asset DB under exh-glb-<id>
 }
 
 export interface MementoSettings {

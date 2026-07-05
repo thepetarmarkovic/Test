@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Settings, X, Volume2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, X, Volume2, ImagePlus, Box, Trash2 } from 'lucide-react';
 import type { Goal, EarningEntry, ExhibitConfig, ExhibitKind } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { formatCurrency, getLastNDays, today } from '../utils/formatters';
 import { createShowroom, playEngineSound, type ShowroomHandle } from '../lib/showroom3d';
+import { saveAsset, loadAsset, deleteAsset } from '../lib/storage';
+import PhotoExhibit from './PhotoExhibit';
 
 interface Props {
   goals: Goal[];
@@ -22,14 +24,29 @@ const DEFAULT_EXHIBITS: ExhibitConfig[] = [
   { id: 'freedom', title: 'QUIT MY JOB', kind: 'exitdoor', target: 3000, source: 'monthly' },
 ];
 
+interface ExhibitAssets { imgUrl?: string; glb?: Blob }
+
+async function downscaleImage(file: File, maxDim = 1600): Promise<Blob> {
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(b => b ? resolve(b) : reject(new Error('encode failed')), 'image/jpeg', 0.87)
+  );
+}
+
 export default function Showroom({ goals, earnings }: Props) {
   const [exhibits, setExhibits] = useLocalStorage<ExhibitConfig[]>('empire_exhibits', DEFAULT_EXHIBITS);
   const [active, setActive] = useState(0);
   const [configFor, setConfigFor] = useState<ExhibitConfig | null>(null);
+  const [assets, setAssets] = useState<Record<string, ExhibitAssets>>({});
+  const [assetsVersion, setAssetsVersion] = useState(0);
   const canvasHost = useRef<HTMLDivElement>(null);
   const handleRef = useRef<ShowroomHandle | null>(null);
   const touchX = useRef<number | null>(null);
-  const enginePlayed = useRef(false);
 
   const lifetime = useMemo(() => earnings.reduce((s, e) => s + e.amount, 0), [earnings]);
   const monthly = useMemo(() => {
@@ -55,6 +72,33 @@ export default function Showroom({ goals, earnings }: Props) {
     return { current: ex.source === 'monthly' ? monthly : lifetime, target: ex.target };
   };
 
+  // Load photos/models from the asset DB whenever flags change
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      const next: Record<string, ExhibitAssets> = {};
+      for (const ex of exhibits) {
+        const entry: ExhibitAssets = {};
+        if (ex.hasImage) {
+          const blob = await loadAsset(`exh-img-${ex.id}`);
+          if (blob) entry.imgUrl = URL.createObjectURL(blob);
+        }
+        if (ex.hasModel) {
+          const blob = await loadAsset(`exh-glb-${ex.id}`);
+          if (blob) entry.glb = blob;
+        }
+        next[ex.id] = entry;
+      }
+      if (!stale) {
+        setAssets(prev => {
+          Object.values(prev).forEach(a => a.imgUrl && URL.revokeObjectURL(a.imgUrl));
+          return next;
+        });
+      }
+    })();
+    return () => { stale = true; };
+  }, [exhibits.map(e => `${e.id}:${e.hasImage ? 1 : 0}${e.hasModel ? 1 : 0}`).join('|'), assetsVersion]);
+
   // Append-only completion stamping — a completed exhibit never un-completes.
   useEffect(() => {
     const stamped = exhibits.map(ex =>
@@ -70,16 +114,18 @@ export default function Showroom({ goals, earnings }: Props) {
   const current = gallery[idx];
   const progress = current ? Math.min(progressOf(current), 1) : 0;
   const vals = current ? valueOf(current) : { current: 0, target: 0 };
+  const curAssets = current ? assets[current.id] : undefined;
+  const usePhoto = !!curAssets?.imgUrl && !curAssets?.glb && current?.kind !== 'exitdoor';
+  const use3D = !usePhoto;
 
-  // Mount / remount the 3D scene when the active exhibit kind changes
+  // Mount / remount the 3D scene when exhibit or its model changes
   useEffect(() => {
-    if (!canvasHost.current || !current) return;
-    const handle = createShowroom(canvasHost.current, current.kind);
+    if (!use3D || !canvasHost.current || !current) return;
+    const handle = createShowroom(canvasHost.current, current.kind, curAssets?.glb);
     handleRef.current = handle;
     handle.setProgress(progressOf(current));
-    enginePlayed.current = false;
     return () => { handle.dispose(); handleRef.current = null; };
-  }, [current?.id]);
+  }, [current?.id, use3D, curAssets?.glb]);
 
   useEffect(() => {
     handleRef.current?.setProgress(current ? progressOf(current) : 0);
@@ -90,6 +136,32 @@ export default function Showroom({ goals, earnings }: Props) {
   const saveConfig = (cfg: ExhibitConfig) => {
     setExhibits(exhibits.map(e => e.id === cfg.id ? cfg : e));
     setConfigFor(null);
+  };
+
+  const uploadPhoto = async (ex: ExhibitConfig, file: File) => {
+    const blob = await downscaleImage(file);
+    await saveAsset(`exh-img-${ex.id}`, blob);
+    const next = { ...ex, hasImage: true };
+    setExhibits(exhibits.map(e => e.id === ex.id ? next : e));
+    setConfigFor(next);
+    setAssetsVersion(v => v + 1);
+  };
+
+  const uploadModel = async (ex: ExhibitConfig, file: File) => {
+    if (file.size > 60 * 1024 * 1024) { alert('Model too large (max 60MB).'); return; }
+    await saveAsset(`exh-glb-${ex.id}`, file);
+    const next = { ...ex, hasModel: true };
+    setExhibits(exhibits.map(e => e.id === ex.id ? next : e));
+    setConfigFor(next);
+    setAssetsVersion(v => v + 1);
+  };
+
+  const removeAsset = async (ex: ExhibitConfig, which: 'img' | 'glb') => {
+    await deleteAsset(`exh-${which}-${ex.id}`);
+    const next = which === 'img' ? { ...ex, hasImage: false } : { ...ex, hasModel: false };
+    setExhibits(exhibits.map(e => e.id === ex.id ? next : e));
+    setConfigFor(next);
+    setAssetsVersion(v => v + 1);
   };
 
   const moneyGoals = goals.filter(g => g.type === 'money' && !g.completed);
@@ -104,9 +176,8 @@ export default function Showroom({ goals, earnings }: Props) {
 
       {current && (
         <div className="empire-card" style={{ padding: 0, overflow: 'hidden', borderColor: 'rgba(212,175,55,0.2)' }}>
-          {/* 3D stage */}
+          {/* Stage: photo panel or 3D canvas */}
           <div
-            ref={canvasHost}
             style={{ height: 'min(52vh, 460px)', position: 'relative', touchAction: 'pan-y' }}
             onTouchStart={e => { touchX.current = e.touches[0].clientX; }}
             onTouchEnd={e => {
@@ -115,9 +186,13 @@ export default function Showroom({ goals, earnings }: Props) {
               if (Math.abs(dx) > 50 && gallery.length > 1) go(dx < 0 ? 1 : -1);
               touchX.current = null;
             }}
-          />
+          >
+            {usePhoto
+              ? <PhotoExhibit src={curAssets!.imgUrl!} kind={current.kind} progress={progress} />
+              : <div ref={canvasHost} style={{ position: 'absolute', inset: 0 }} />}
+          </div>
 
-          {/* Overlay: arrows */}
+          {/* Arrows */}
           {gallery.length > 1 && (
             <>
               <button onClick={() => go(-1)} style={{ position: 'absolute', left: 10, top: '40%', background: 'rgba(0,0,0,0.5)', border: '1px solid #2a2a2a', borderRadius: '50%', width: 36, height: 36, color: '#D4AF37', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><ChevronLeft size={18} /></button>
@@ -137,11 +212,7 @@ export default function Showroom({ goals, earnings }: Props) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {progress >= 1 && current.kind === 'panamera' && (
-                  <button
-                    onClick={() => { playEngineSound(); enginePlayed.current = true; }}
-                    className="btn-gold"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}
-                  >
+                  <button onClick={() => playEngineSound()} className="btn-gold" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                     <Volume2 size={13} /> START ENGINE
                   </button>
                 )}
@@ -154,7 +225,6 @@ export default function Showroom({ goals, earnings }: Props) {
             <div className="progress-track" style={{ marginTop: 12 }}>
               <div className="progress-fill" style={{ width: `${Math.min(progress * 100, 100)}%` }} />
             </div>
-            {/* Dots */}
             {gallery.length > 1 && (
               <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 12 }}>
                 {gallery.map((ex, i) => (
@@ -182,19 +252,21 @@ export default function Showroom({ goals, earnings }: Props) {
       )}
 
       <div style={{ padding: '10px 14px', background: '#0a0a0a', borderRadius: 8, fontSize: 11, color: '#444', lineHeight: 1.6, border: '1px solid #111' }}>
-        💡 Swipe or use the arrows to walk the showroom · Each exhibit reveals itself as your money grows · ⚙ to set targets or link a money goal
+        💡 Open ⚙ on an exhibit to add a photo of YOUR exact dream machine — it becomes a spotlit exhibit with live reveals. Want it in full 3D? Generate a .glb from that photo with a free photo→3D tool (Meshy, Tripo, Luma) and upload it in the same menu.
       </div>
 
       {/* Config modal */}
       {configFor && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setConfigFor(null); }}>
-          <div className="modal-box" style={{ maxWidth: 400 }}>
+          <div className="modal-box" style={{ maxWidth: 420 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
               <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#D4AF37' }}>CONFIGURE — {KIND_LABELS[configFor.kind]}</h3>
               <button onClick={() => setConfigFor(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={18} /></button>
             </div>
+
             <div className="label-upper" style={{ marginBottom: 6 }}>Exhibit Title</div>
             <input className="empire-input" value={configFor.title} onChange={e => setConfigFor({ ...configFor, title: e.target.value })} style={{ marginBottom: 12 }} />
+
             <div className="label-upper" style={{ marginBottom: 6 }}>Progress Source</div>
             <select
               className="empire-select"
@@ -225,7 +297,38 @@ export default function Showroom({ goals, earnings }: Props) {
                 <input className="empire-input" type="number" value={configFor.target} onChange={e => setConfigFor({ ...configFor, target: parseFloat(e.target.value) || 0 })} style={{ marginBottom: 12 }} />
               </>
             )}
-            <button onClick={() => saveConfig(configFor)} className="btn-gold" style={{ width: '100%', marginTop: 6 }}>SAVE EXHIBIT</button>
+
+            {/* Visuals: photo + optional 3D model */}
+            {configFor.kind !== 'exitdoor' && (
+              <>
+                <div style={{ fontSize: 10, color: '#D4AF37', letterSpacing: '0.1em', fontWeight: 700, margin: '14px 0 8px' }}>◆ EXHIBIT VISUALS</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <label className="btn-ghost" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', fontSize: 11 }}>
+                    <ImagePlus size={13} /> {configFor.hasImage ? 'REPLACE PHOTO' : 'ADD PHOTO'}
+                    <input type="file" accept="image/*" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadPhoto(configFor, f); e.target.value = ''; }} />
+                  </label>
+                  {configFor.hasImage && (
+                    <button onClick={() => removeAsset(configFor, 'img')} className="btn-ghost" style={{ color: '#FF4141', borderColor: 'rgba(255,65,65,0.3)' }}><Trash2 size={13} /></button>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <label className="btn-ghost" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, cursor: 'pointer', fontSize: 11 }}>
+                    <Box size={13} /> {configFor.hasModel ? 'REPLACE 3D MODEL' : 'UPLOAD 3D MODEL (.GLB)'}
+                    <input type="file" accept=".glb,model/gltf-binary" style={{ display: 'none' }}
+                      onChange={e => { const f = e.target.files?.[0]; if (f) uploadModel(configFor, f); e.target.value = ''; }} />
+                  </label>
+                  {configFor.hasModel && (
+                    <button onClick={() => removeAsset(configFor, 'glb')} className="btn-ghost" style={{ color: '#FF4141', borderColor: 'rgba(255,65,65,0.3)' }}><Trash2 size={13} /></button>
+                  )}
+                </div>
+                <div style={{ fontSize: 10, color: '#444', lineHeight: 1.6, marginBottom: 4 }}>
+                  Photo = spotlit exhibit with live reveals. For true rotating 3D of your exact machine: feed the photo to a free photo→3D generator (Meshy / Tripo / Luma), download the .glb, upload it here. A 3D model overrides the photo.
+                </div>
+              </>
+            )}
+
+            <button onClick={() => saveConfig(configFor)} className="btn-gold" style={{ width: '100%', marginTop: 10 }}>SAVE EXHIBIT</button>
           </div>
         </div>
       )}
