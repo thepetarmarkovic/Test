@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { EarningEntry } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { getLastNDays, formatCurrency } from '../utils/formatters';
@@ -8,23 +8,20 @@ interface Props {
   earnings: EarningEntry[];
 }
 
-// Pure pace counter: value = accrued + rate x elapsed. No real-income jumps —
-// logging income only changes the RATE (slope), never the displayed value.
-interface PaceAnchor {
-  monthKey: string;   // 'YYYY-MM' (local)
-  accrued: number;    // value locked in at anchor time
-  anchorTs: number;   // epoch ms ticking resumes from
-  rate: number;       // $/sec at anchor time
-}
-
+// THIS MONTH — LIVE PACE
+// Big number = trailing-30-day $/sec rate x seconds elapsed this month.
+// Fully derived from real income + the clock (no drifting anchors):
+// - climbs every tick, resets on the 1st
+// - logging income raises the rate -> the whole month re-values upward
+// - a per-month high-water mark keeps it from ever ticking backward
+//   when old entries age out of the 30-day window
 const monthKeyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
-const valueAt = (a: PaceAnchor, ts: number) =>
-  a.accrued + a.rate * Math.max(0, (ts - a.anchorTs) / 1000);
+interface HighWater { monthKey: string; value: number }
 
 export default function LiveAccrual({ earnings }: Props) {
-  const [anchor, setAnchor] = useLocalStorage<PaceAnchor | null>('empire_paceMonth', null);
+  const [hiWater, setHiWater] = useLocalStorage<HighWater | null>('empire_paceHigh', null);
   const [now, setNow] = useState(() => Date.now());
 
   const nowDate = new Date(now);
@@ -32,38 +29,36 @@ export default function LiveAccrual({ earnings }: Props) {
   const prevMk = monthKeyOf(new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1));
   const startOfMonthMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
 
-  const { lastMonth, ratePerSec } = useMemo(() => {
+  const { realMonth, lastMonth, ratePerSec } = useMemo(() => {
     const last30 = getLastNDays(30);
     return {
+      realMonth: earnings.filter(e => e.date.startsWith(mk)).reduce((s, e) => s + e.amount, 0),
       lastMonth: earnings.filter(e => e.date.startsWith(prevMk)).reduce((s, e) => s + e.amount, 0),
       ratePerSec: earnings.filter(e => last30.includes(e.date)).reduce((s, e) => s + e.amount, 0) / SEC_30D,
     };
-  }, [earnings, prevMk]);
+  }, [earnings, mk, prevMk]);
 
-  // Anchor lifecycle: start at 0, tick at the current rate; when the rate
-  // changes (new income or entries aging out), lock in the displayed value
-  // and continue at the new slope — continuous, never a jump, never backward.
+  // Record the high-water mark whenever the rate changes (that's the only
+  // moment the derived value can fall — entries aging out of the window).
+  const prevRate = useRef(ratePerSec);
   useEffect(() => {
-    const ts = Date.now();
-    if (!anchor) {
-      setAnchor({ monthKey: mk, accrued: 0, anchorTs: ts, rate: ratePerSec });
-      return;
+    if (prevRate.current !== ratePerSec) {
+      const atOldRate = prevRate.current * Math.max(0, (Date.now() - startOfMonthMs) / 1000);
+      prevRate.current = ratePerSec;
+      if (!hiWater || hiWater.monthKey !== mk || atOldRate > hiWater.value) {
+        setHiWater({ monthKey: mk, value: atOldRate });
+      }
     }
-    if (anchor.monthKey !== mk) {
-      setAnchor({ monthKey: mk, accrued: 0, anchorTs: startOfMonthMs, rate: ratePerSec });
-      return;
-    }
-    if (Math.abs(anchor.rate - ratePerSec) > 1e-9) {
-      setAnchor({ monthKey: mk, accrued: valueAt(anchor, ts), anchorTs: ts, rate: ratePerSec });
-    }
-  }, [mk, ratePerSec, anchor, startOfMonthMs]);
+  }, [ratePerSec, mk, startOfMonthMs, hiWater]);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(iv);
   }, []);
 
-  const value = anchor && anchor.monthKey === mk ? valueAt(anchor, now) : 0;
+  const raw = ratePerSec * Math.max(0, (now - startOfMonthMs) / 1000);
+  const floor = hiWater && hiWater.monthKey === mk ? hiWater.value : 0;
+  const value = Math.max(raw, floor);
 
   const mainStr = '$' + (Math.floor(value * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const micro = Math.floor((value * 1_000_000) % 10_000).toString().padStart(4, '0');
@@ -78,7 +73,7 @@ export default function LiveAccrual({ earnings }: Props) {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ THIS MONTH — AT YOUR PACE</span>
+        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ THIS MONTH — LIVE PACE</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="status-dot status-dot-success animate-blink" />
           <span style={{ fontSize: 10, color: '#00FF87', letterSpacing: '0.12em', fontWeight: 800, fontFamily: 'JetBrains Mono, monospace' }}>RUNNING</span>
@@ -106,7 +101,11 @@ export default function LiveAccrual({ earnings }: Props) {
         </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+      {/* reality check + the race */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, color: '#00FF87', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+          LOGGED: {formatCurrency(realMonth)}
+        </span>
         <span style={{ fontSize: 11, color: '#777', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
           LAST MONTH: {formatCurrency(lastMonth)}
         </span>
@@ -118,7 +117,7 @@ export default function LiveAccrual({ earnings }: Props) {
       </div>
 
       <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.08em', marginTop: 8 }}>
-        TICKING AT YOUR 30-DAY RATE — LOGGING INCOME CHANGES THE PACE, NOT THE NUMBER
+        YOUR REAL 30-DAY INCOME, REPLAYED AS A LIVE MONTHLY PACE — MORE INCOME = FASTER CLIMB
       </div>
     </div>
   );
