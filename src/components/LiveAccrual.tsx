@@ -10,7 +10,8 @@ interface Props {
 
 interface MonthAnchor {
   monthKey: string;     // 'YYYY-MM' (local)
-  realTotal: number;    // real income sum for the month at anchor time
+  baseline: number;     // monthly income that existed before the counter went live — excluded
+  realTotal: number;    // real monthly sum at anchor time (jump detection)
   anchorTs: number;     // epoch ms accrual ticks from
 }
 
@@ -18,7 +19,7 @@ const monthKeyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 export default function LiveAccrual({ earnings }: Props) {
-  const [anchor, setAnchor] = useLocalStorage<MonthAnchor | null>('empire_monthAccrual', null);
+  const [anchor, setAnchor] = useLocalStorage<MonthAnchor | null>('empire_monthAccrual2', null);
   const [now, setNow] = useState(() => Date.now());
 
   const nowDate = new Date(now);
@@ -35,25 +36,26 @@ export default function LiveAccrual({ earnings }: Props) {
     };
   }, [earnings, mk, prevMk]);
 
-  // Anchor lifecycle — value is always derived, never incremented in state.
+  // Anchor lifecycle — the counter ALWAYS starts at $0:
+  // - first ever run: baseline = whatever this month already holds
+  // - new month: baseline = 0 (fresh race, every entry counts)
+  // - new income: odometer jumps by the entry, ticking resumes from now
   useEffect(() => {
-    if (!anchor || anchor.monthKey !== mk) {
-      // new month (or first run): accrue from the later of start-of-month or
-      // the most recent entry day this month
-      const latest = earnings.filter(e => e.date.startsWith(mk)).map(e => e.date).sort().pop();
-      let base = startOfMonthMs;
-      if (latest) {
-        const [y, m, d] = latest.split('-').map(Number);
-        base = Math.max(base, new Date(y, m - 1, d).getTime());
-      }
-      setAnchor({ monthKey: mk, realTotal: realMonth, anchorTs: Math.min(base, Date.now()) });
+    if (!anchor) {
+      setAnchor({ monthKey: mk, baseline: realMonth, realTotal: realMonth, anchorTs: Date.now() });
+      return;
+    }
+    if (anchor.monthKey !== mk) {
+      setAnchor({ monthKey: mk, baseline: 0, realTotal: realMonth, anchorTs: startOfMonthMs });
       return;
     }
     if (anchor.realTotal !== realMonth) {
-      // income logged this month — odometer jumps by the entry, ticking resumes from now
-      setAnchor({ monthKey: mk, realTotal: realMonth, anchorTs: Date.now() });
+      // entries deleted below the baseline: lower the baseline so the counter
+      // never goes negative and future income still counts
+      const baseline = Math.min(anchor.baseline, realMonth);
+      setAnchor({ monthKey: mk, baseline, realTotal: realMonth, anchorTs: Date.now() });
     }
-  }, [mk, realMonth, anchor, startOfMonthMs, earnings]);
+  }, [mk, realMonth, anchor, startOfMonthMs]);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 100);
@@ -61,8 +63,8 @@ export default function LiveAccrual({ earnings }: Props) {
   }, []);
 
   const value = anchor && anchor.monthKey === mk
-    ? anchor.realTotal + ratePerSec * Math.max(0, (now - anchor.anchorTs) / 1000)
-    : realMonth;
+    ? Math.max(0, realMonth - anchor.baseline) + ratePerSec * Math.max(0, (now - anchor.anchorTs) / 1000)
+    : 0;
 
   const mainStr = '$' + (Math.floor(value * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const micro = Math.floor((value * 1_000_000) % 10_000).toString().padStart(4, '0');
