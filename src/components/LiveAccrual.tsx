@@ -1,66 +1,72 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { EarningEntry } from '../types';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getLastNDays } from '../utils/formatters';
+import { getLastNDays, formatCurrency } from '../utils/formatters';
 import { OdoChar, SEC_30D } from './MoneyTicker';
 
 interface Props {
   earnings: EarningEntry[];
 }
 
-interface AccrualAnchor {
-  startTotal: number;   // value the counter climbs from
-  startTs: number;      // epoch ms the climb started
-  rate: number;         // $/sec at anchor time
-  realTotal: number;    // real lifetime total at anchor time (to detect income changes)
+interface MonthAnchor {
+  monthKey: string;     // 'YYYY-MM' (local)
+  realTotal: number;    // real income sum for the month at anchor time
+  anchorTs: number;     // epoch ms accrual ticks from
 }
 
-const valueAt = (a: AccrualAnchor, ts: number) =>
-  a.startTotal + a.rate * Math.max(0, (ts - a.startTs) / 1000);
+const monthKeyOf = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 export default function LiveAccrual({ earnings }: Props) {
-  const [anchor, setAnchor] = useLocalStorage<AccrualAnchor | null>('empire_accrual', null);
+  const [anchor, setAnchor] = useLocalStorage<MonthAnchor | null>('empire_monthAccrual', null);
   const [now, setNow] = useState(() => Date.now());
 
-  const { totalEarned, ratePerSec } = useMemo(() => {
+  const nowDate = new Date(now);
+  const mk = monthKeyOf(nowDate);
+  const prevMk = monthKeyOf(new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1));
+  const startOfMonthMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+
+  const { realMonth, lastMonth, ratePerSec } = useMemo(() => {
     const last30 = getLastNDays(30);
     return {
-      totalEarned: earnings.reduce((s, e) => s + e.amount, 0),
+      realMonth: earnings.filter(e => e.date.startsWith(mk)).reduce((s, e) => s + e.amount, 0),
+      lastMonth: earnings.filter(e => e.date.startsWith(prevMk)).reduce((s, e) => s + e.amount, 0),
       ratePerSec: earnings.filter(e => last30.includes(e.date)).reduce((s, e) => s + e.amount, 0) / SEC_30D,
     };
-  }, [earnings]);
+  }, [earnings, mk, prevMk]);
 
-  // Anchor lifecycle: initialize once, then reconcile — never tick into state.
+  // Anchor lifecycle — value is always derived, never incremented in state.
   useEffect(() => {
-    const ts = Date.now();
-    if (!anchor) {
-      // first run: start climbing from the current real lifetime total
-      setAnchor({ startTotal: totalEarned, startTs: ts, rate: ratePerSec, realTotal: totalEarned });
+    if (!anchor || anchor.monthKey !== mk) {
+      // new month (or first run): accrue from the later of start-of-month or
+      // the most recent entry day this month
+      const latest = earnings.filter(e => e.date.startsWith(mk)).map(e => e.date).sort().pop();
+      let base = startOfMonthMs;
+      if (latest) {
+        const [y, m, d] = latest.split('-').map(Number);
+        base = Math.max(base, new Date(y, m - 1, d).getTime());
+      }
+      setAnchor({ monthKey: mk, realTotal: realMonth, anchorTs: Math.min(base, Date.now()) });
       return;
     }
-    if (anchor.realTotal !== totalEarned) {
-      // real income logged/edited — re-anchor to truth (odometer rolls the jump)
-      setAnchor({ startTotal: totalEarned, startTs: ts, rate: ratePerSec, realTotal: totalEarned });
-      return;
+    if (anchor.realTotal !== realMonth) {
+      // income logged this month — odometer jumps by the entry, ticking resumes from now
+      setAnchor({ monthKey: mk, realTotal: realMonth, anchorTs: Date.now() });
     }
-    if (Math.abs(anchor.rate - ratePerSec) > 1e-9) {
-      // rate drifted (entries aging out of the 30-day window) — freeze the
-      // currently displayed value as the new start so the counter never
-      // moves backward, then continue at the new rate
-      setAnchor({ startTotal: valueAt(anchor, ts), startTs: ts, rate: ratePerSec, realTotal: totalEarned });
-    }
-  }, [totalEarned, ratePerSec, anchor]);
+  }, [mk, realMonth, anchor, startOfMonthMs, earnings]);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(iv);
   }, []);
 
-  const value = anchor ? valueAt(anchor, now) : totalEarned;
+  const value = anchor && anchor.monthKey === mk
+    ? anchor.realTotal + ratePerSec * Math.max(0, (now - anchor.anchorTs) / 1000)
+    : realMonth;
 
-  // "$1,234.56" rolls on the odometer; 4 extra decimals stream continuously
   const mainStr = '$' + (Math.floor(value * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const micro = Math.floor((value * 1_000_000) % 10_000).toString().padStart(4, '0');
+  const beatingLastMonth = lastMonth > 0 && value >= lastMonth;
 
   return (
     <div
@@ -71,7 +77,7 @@ export default function LiveAccrual({ earnings }: Props) {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ LIVE ACCRUAL</span>
+        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ THIS MONTH</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="status-dot status-dot-success animate-blink" />
           <span style={{ fontSize: 10, color: '#00FF87', letterSpacing: '0.12em', fontWeight: 800, fontFamily: 'JetBrains Mono, monospace' }}>RUNNING</span>
@@ -99,8 +105,20 @@ export default function LiveAccrual({ earnings }: Props) {
         </span>
       </div>
 
-      <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.08em', marginTop: 10 }}>
-        PROJECTED AT CURRENT VELOCITY — RECONCILES ON REAL INCOME
+      {/* the race against last month */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+        <span style={{ fontSize: 11, color: '#777', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
+          LAST MONTH: {formatCurrency(lastMonth)}
+        </span>
+        {beatingLastMonth && (
+          <span style={{ fontSize: 9, color: '#00FF87', fontWeight: 800, letterSpacing: '0.08em', background: 'rgba(0,255,135,0.08)', border: '1px solid rgba(0,255,135,0.25)', padding: '2px 8px', borderRadius: 20 }}>
+            ⚑ BEATEN
+          </span>
+        )}
+      </div>
+
+      <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.08em', marginTop: 8 }}>
+        REAL INCOME THIS MONTH + LIVE ACCRUAL AT CURRENT PACE
       </div>
     </div>
   );
