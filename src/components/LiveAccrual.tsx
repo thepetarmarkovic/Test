@@ -10,24 +10,32 @@ interface Props {
 
 // THIS MONTH — LIVE PACE
 // Big number = trailing-30-day $/sec rate x seconds elapsed this month.
-// Fully derived from real income + the clock (no drifting anchors):
-// - climbs every tick, resets on the 1st
-// - logging income raises the rate -> the whole month re-values upward
-// - a per-month high-water mark keeps it from ever ticking backward
-//   when old entries age out of the 30-day window
+// Rendered at 60fps via requestAnimationFrame: the odometer part updates
+// through React only when the cents change; the 4-digit micro tail is
+// written straight to the DOM every frame.
 const monthKeyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
 interface HighWater { monthKey: string; value: number }
 
+const SWEEP_MS = 1400;
+const easeOutExpo = (p: number) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p));
+
+const fmtMain = (v: number) =>
+  '$' + (Math.floor(v * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
 export default function LiveAccrual({ earnings }: Props) {
   const [hiWater, setHiWater] = useLocalStorage<HighWater | null>('empire_paceHigh', null);
-  const [now, setNow] = useState(() => Date.now());
+  const [mainStr, setMainStr] = useState('$0.00');
+  const microRef = useRef<HTMLSpanElement>(null);
+  const numRef = useRef<HTMLSpanElement>(null);
+  const prevMain = useRef('$0.00');
+  const mountTs = useRef(0);
 
-  const nowDate = new Date(now);
-  const mk = monthKeyOf(nowDate);
-  const prevMk = monthKeyOf(new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1));
-  const startOfMonthMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
+  const renderDate = new Date();
+  const mk = monthKeyOf(renderDate);
+  const prevMk = monthKeyOf(new Date(renderDate.getFullYear(), renderDate.getMonth() - 1, 1));
+  const startOfMonthMs = new Date(renderDate.getFullYear(), renderDate.getMonth(), 1).getTime();
 
   const { realMonth, lastMonth, ratePerSec } = useMemo(() => {
     const last30 = getLastNDays(30);
@@ -38,8 +46,18 @@ export default function LiveAccrual({ earnings }: Props) {
     };
   }, [earnings, mk, prevMk]);
 
-  // Record the high-water mark whenever the rate changes (that's the only
-  // moment the derived value can fall — entries aging out of the window).
+  // Live value, always derived fresh from the clock (month boundary included)
+  const calcRef = useRef<() => number>(() => 0);
+  calcRef.current = () => {
+    const t = Date.now();
+    const d = new Date(t);
+    const som = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+    const raw = ratePerSec * Math.max(0, (t - som) / 1000);
+    const floor = hiWater && hiWater.monthKey === monthKeyOf(d) ? hiWater.value : 0;
+    return Math.max(raw, floor);
+  };
+
+  // High-water mark: record on rate changes so the value never ticks backward
   const prevRate = useRef(ratePerSec);
   useEffect(() => {
     if (prevRate.current !== ratePerSec) {
@@ -51,18 +69,34 @@ export default function LiveAccrual({ earnings }: Props) {
     }
   }, [ratePerSec, mk, startOfMonthMs, hiWater]);
 
+  // 60fps render loop with a launch sweep from $0 on mount
   useEffect(() => {
-    const iv = setInterval(() => setNow(Date.now()), 100);
-    return () => clearInterval(iv);
+    mountTs.current = Date.now();
+    let raf = 0;
+    const tick = () => {
+      const p = Math.min(1, (Date.now() - mountTs.current) / SWEEP_MS);
+      const v = calcRef.current() * easeOutExpo(p);
+      if (microRef.current) {
+        microRef.current.textContent = Math.floor((v * 1_000_000) % 10_000).toString().padStart(4, '0');
+      }
+      const next = fmtMain(v);
+      if (next !== prevMain.current) {
+        prevMain.current = next;
+        setMainStr(next);
+        // glow flare on cent advance (skip during the launch sweep)
+        if (p >= 1 && numRef.current) {
+          numRef.current.classList.remove('cent-pulse');
+          void numRef.current.offsetWidth;
+          numRef.current.classList.add('cent-pulse');
+        }
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
   }, []);
 
-  const raw = ratePerSec * Math.max(0, (now - startOfMonthMs) / 1000);
-  const floor = hiWater && hiWater.monthKey === mk ? hiWater.value : 0;
-  const value = Math.max(raw, floor);
-
-  const mainStr = '$' + (Math.floor(value * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const micro = Math.floor((value * 1_000_000) % 10_000).toString().padStart(4, '0');
-  const beatingLastMonth = lastMonth > 0 && value >= lastMonth;
+  const beatingLastMonth = lastMonth > 0 && calcRef.current() >= lastMonth;
 
   return (
     <div
@@ -82,22 +116,26 @@ export default function LiveAccrual({ earnings }: Props) {
 
       <div style={{ display: 'flex', alignItems: 'baseline', whiteSpace: 'nowrap' }}>
         <span
+          ref={numRef}
+          className="money-glow"
           style={{
             fontSize: 'clamp(28px, 6vw, 44px)', fontWeight: 900, lineHeight: 1,
-            fontFamily: 'JetBrains Mono, monospace', color: '#FFD700',
-            textShadow: '0 0 24px rgba(212,175,55,0.35)', letterSpacing: '0.02em',
+            fontFamily: 'JetBrains Mono, monospace',
+            letterSpacing: '0.02em',
+            filter: 'drop-shadow(0 0 6px rgba(212,175,55,0.35))',
           }}
         >
           {mainStr.split('').map((ch, i) => <OdoChar key={mainStr.length - i} ch={ch} />)}
         </span>
         <span
+          ref={microRef}
           style={{
             fontSize: 'clamp(14px, 2.6vw, 20px)', fontWeight: 700, lineHeight: 1,
             fontFamily: 'JetBrains Mono, monospace', color: 'rgba(0,255,135,0.55)',
             fontVariantNumeric: 'tabular-nums', marginLeft: 6, letterSpacing: '0.06em',
           }}
         >
-          {micro}
+          0000
         </span>
       </div>
 

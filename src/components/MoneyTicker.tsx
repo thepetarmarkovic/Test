@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import type { EarningEntry } from '../types';
 import { getLastNDays, formatCurrencyFull, formatCurrency } from '../utils/formatters';
@@ -103,8 +103,11 @@ function VelocityPanel({ ratePerSec, daily30, onClose }: {
   );
 }
 
+const easeOutExpo = (p: number) => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p));
+
 export default function MoneyTicker({ earnings }: Props) {
   const [showVelocity, setShowVelocity] = useState(false);
+  const [sweep, setSweep] = useState(0); // 0..1 launch progress
 
   const { totalEarned, ratePerSec, prevRatePerSec, daily30 } = useMemo(() => {
     const total = earnings.reduce((s, e) => s + e.amount, 0);
@@ -120,7 +123,21 @@ export default function MoneyTicker({ earnings }: Props) {
     };
   }, [earnings]);
 
-  const display = '$' + totalEarned.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Launch sweep: the number rushes up from $0 to the real total on mount
+  useEffect(() => {
+    let raf = 0;
+    const t0 = performance.now();
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - t0) / 1200);
+      setSweep(easeOutExpo(p));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  const shown = totalEarned * sweep;
+  const display = '$' + shown.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const trend = ratePerSec > prevRatePerSec * 1.001 ? 'up' : ratePerSec < prevRatePerSec * 0.999 ? 'down' : 'flat';
 
   if (earnings.length === 0) {
@@ -147,11 +164,13 @@ export default function MoneyTicker({ earnings }: Props) {
 
       {/* Real lifetime total — rolls only when income changes */}
       <div
+        className="money-glow"
         style={{
           fontSize: 'clamp(28px, 6vw, 44px)', fontWeight: 900, lineHeight: 1,
-          fontFamily: 'JetBrains Mono, monospace', color: '#FFD700',
-          textShadow: '0 0 24px rgba(212,175,55,0.35)',
+          fontFamily: 'JetBrains Mono, monospace',
+          filter: 'drop-shadow(0 0 8px rgba(212,175,55,0.35))',
           letterSpacing: '0.02em', whiteSpace: 'nowrap',
+          width: 'fit-content',
         }}
       >
         {display.split('').map((ch, i) => <OdoChar key={display.length - i} ch={ch} />)}
