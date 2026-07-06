@@ -8,18 +8,23 @@ interface Props {
   earnings: EarningEntry[];
 }
 
-interface MonthAnchor {
-  monthKey: string;     // 'YYYY-MM' (local)
-  baseline: number;     // monthly income that existed before the counter went live — excluded
-  realTotal: number;    // real monthly sum at anchor time (jump detection)
-  anchorTs: number;     // epoch ms accrual ticks from
+// Pure pace counter: value = accrued + rate x elapsed. No real-income jumps —
+// logging income only changes the RATE (slope), never the displayed value.
+interface PaceAnchor {
+  monthKey: string;   // 'YYYY-MM' (local)
+  accrued: number;    // value locked in at anchor time
+  anchorTs: number;   // epoch ms ticking resumes from
+  rate: number;       // $/sec at anchor time
 }
 
 const monthKeyOf = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 
+const valueAt = (a: PaceAnchor, ts: number) =>
+  a.accrued + a.rate * Math.max(0, (ts - a.anchorTs) / 1000);
+
 export default function LiveAccrual({ earnings }: Props) {
-  const [anchor, setAnchor] = useLocalStorage<MonthAnchor | null>('empire_monthAccrual2', null);
+  const [anchor, setAnchor] = useLocalStorage<PaceAnchor | null>('empire_paceMonth', null);
   const [now, setNow] = useState(() => Date.now());
 
   const nowDate = new Date(now);
@@ -27,44 +32,38 @@ export default function LiveAccrual({ earnings }: Props) {
   const prevMk = monthKeyOf(new Date(nowDate.getFullYear(), nowDate.getMonth() - 1, 1));
   const startOfMonthMs = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1).getTime();
 
-  const { realMonth, lastMonth, ratePerSec } = useMemo(() => {
+  const { lastMonth, ratePerSec } = useMemo(() => {
     const last30 = getLastNDays(30);
     return {
-      realMonth: earnings.filter(e => e.date.startsWith(mk)).reduce((s, e) => s + e.amount, 0),
       lastMonth: earnings.filter(e => e.date.startsWith(prevMk)).reduce((s, e) => s + e.amount, 0),
       ratePerSec: earnings.filter(e => last30.includes(e.date)).reduce((s, e) => s + e.amount, 0) / SEC_30D,
     };
-  }, [earnings, mk, prevMk]);
+  }, [earnings, prevMk]);
 
-  // Anchor lifecycle — the counter ALWAYS starts at $0:
-  // - first ever run: baseline = whatever this month already holds
-  // - new month: baseline = 0 (fresh race, every entry counts)
-  // - new income: odometer jumps by the entry, ticking resumes from now
+  // Anchor lifecycle: start at 0, tick at the current rate; when the rate
+  // changes (new income or entries aging out), lock in the displayed value
+  // and continue at the new slope — continuous, never a jump, never backward.
   useEffect(() => {
+    const ts = Date.now();
     if (!anchor) {
-      setAnchor({ monthKey: mk, baseline: realMonth, realTotal: realMonth, anchorTs: Date.now() });
+      setAnchor({ monthKey: mk, accrued: 0, anchorTs: ts, rate: ratePerSec });
       return;
     }
     if (anchor.monthKey !== mk) {
-      setAnchor({ monthKey: mk, baseline: 0, realTotal: realMonth, anchorTs: startOfMonthMs });
+      setAnchor({ monthKey: mk, accrued: 0, anchorTs: startOfMonthMs, rate: ratePerSec });
       return;
     }
-    if (anchor.realTotal !== realMonth) {
-      // entries deleted below the baseline: lower the baseline so the counter
-      // never goes negative and future income still counts
-      const baseline = Math.min(anchor.baseline, realMonth);
-      setAnchor({ monthKey: mk, baseline, realTotal: realMonth, anchorTs: Date.now() });
+    if (Math.abs(anchor.rate - ratePerSec) > 1e-9) {
+      setAnchor({ monthKey: mk, accrued: valueAt(anchor, ts), anchorTs: ts, rate: ratePerSec });
     }
-  }, [mk, realMonth, anchor, startOfMonthMs]);
+  }, [mk, ratePerSec, anchor, startOfMonthMs]);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 100);
     return () => clearInterval(iv);
   }, []);
 
-  const value = anchor && anchor.monthKey === mk
-    ? Math.max(0, realMonth - anchor.baseline) + ratePerSec * Math.max(0, (now - anchor.anchorTs) / 1000)
-    : 0;
+  const value = anchor && anchor.monthKey === mk ? valueAt(anchor, now) : 0;
 
   const mainStr = '$' + (Math.floor(value * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const micro = Math.floor((value * 1_000_000) % 10_000).toString().padStart(4, '0');
@@ -79,7 +78,7 @@ export default function LiveAccrual({ earnings }: Props) {
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ THIS MONTH</span>
+        <span style={{ fontSize: 11, color: '#D4AF37', letterSpacing: '0.12em', fontWeight: 700 }}>◆ THIS MONTH — AT YOUR PACE</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span className="status-dot status-dot-success animate-blink" />
           <span style={{ fontSize: 10, color: '#00FF87', letterSpacing: '0.12em', fontWeight: 800, fontFamily: 'JetBrains Mono, monospace' }}>RUNNING</span>
@@ -107,7 +106,6 @@ export default function LiveAccrual({ earnings }: Props) {
         </span>
       </div>
 
-      {/* the race against last month */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
         <span style={{ fontSize: 11, color: '#777', letterSpacing: '0.08em', fontFamily: 'JetBrains Mono, monospace', fontWeight: 700 }}>
           LAST MONTH: {formatCurrency(lastMonth)}
@@ -120,7 +118,7 @@ export default function LiveAccrual({ earnings }: Props) {
       </div>
 
       <div style={{ fontSize: 10, color: '#444', letterSpacing: '0.08em', marginTop: 8 }}>
-        REAL INCOME THIS MONTH + LIVE ACCRUAL AT CURRENT PACE
+        TICKING AT YOUR 30-DAY RATE — LOGGING INCOME CHANGES THE PACE, NOT THE NUMBER
       </div>
     </div>
   );
