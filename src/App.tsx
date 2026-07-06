@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import HabitTracker from './components/HabitTracker';
@@ -9,20 +9,31 @@ import Goals from './components/Goals';
 import Competition from './components/Competition';
 import PomodoroTimer from './components/PomodoroTimer';
 import FinanceTracker from './components/FinanceTracker';
+import MementoMori from './components/MementoMori';
+import WarBriefing from './components/WarBriefing';
+import BootSequence from './components/BootSequence';
+import Wrapped from './components/Wrapped';
+import Skyline from './components/Skyline';
+import FlexRoom from './components/FlexRoom';
+
+const Showroom = lazy(() => import('./components/Showroom'));
 import { useLocalStorage } from './hooks/useLocalStorage';
 import type {
-  Page, Habit, EarningEntry, SleepEntry, JournalEntry, Goal,
+  Page, Habit, EarningEntry, ExpenseEntry, SleepEntry, JournalEntry, Goal,
   CompetitorProfile, PomodoroSession,
   Asset, Liability, BudgetCategory, Subscription, PortfolioItem,
-  NetWorthSnapshot, FireSettings
+  NetWorthSnapshot, FireSettings, MementoSettings, BriefingSnapshot
 } from './types';
 import { X } from 'lucide-react';
+import { saveSnapshot, loadSnapshot, requestPersistentStorage } from './lib/storage';
+import { today } from './utils/formatters';
 
 export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const [userName, setUserName] = useLocalStorage<string>('empire_username', '');
   const [habits, setHabits] = useLocalStorage<Habit[]>('empire_habits', []);
   const [earnings, setEarnings] = useLocalStorage<EarningEntry[]>('empire_earnings', []);
+  const [expenses, setExpenses] = useLocalStorage<ExpenseEntry[]>('empire_expenses', []);
   const [sleep, setSleep] = useLocalStorage<SleepEntry[]>('empire_sleep', []);
   const [journal, setJournal] = useLocalStorage<JournalEntry[]>('empire_journal', []);
   const [goals, setGoals] = useLocalStorage<Goal[]>('empire_goals', []);
@@ -40,13 +51,53 @@ export default function App() {
     currentSavings: 0,
     expectedReturn: 7,
   });
+  const [memento, setMemento] = useLocalStorage<MementoSettings | null>('empire_memento', null);
+  const [lastBriefing, setLastBriefing] = useLocalStorage<string>('empire_lastBriefing', '');
+  const [briefingSnapshot, setBriefingSnapshot] = useLocalStorage<BriefingSnapshot | null>('empire_briefingSnapshot', null);
+  const [briefingOpen, setBriefingOpen] = useState(() => !!userName && lastBriefing !== today());
+  const [booting, setBooting] = useState(true);
+  const [flexOpen, setFlexOpen] = useState(false);
   const [showNamePrompt, setShowNamePrompt] = useState(!userName);
   const [nameInput, setNameInput] = useState('');
+
+  // On mount: request persistent storage + restore from IndexedDB if localStorage was cleared
+  useEffect(() => {
+    requestPersistentStorage();
+    if (!userName) {
+      loadSnapshot().then(snapshot => {
+        if (!snapshot) return;
+        Object.entries(snapshot).forEach(([k, v]) => {
+          try { localStorage.setItem(k, JSON.stringify(v)); } catch {}
+        });
+        window.location.reload();
+      });
+    }
+  }, []);
+
+  // Auto-snapshot all data to IndexedDB 2s after any change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const keys = Object.keys(localStorage).filter(k => k.startsWith('empire_'));
+      const data: Record<string, unknown> = {};
+      keys.forEach(k => { try { data[k] = JSON.parse(localStorage.getItem(k)!); } catch {} });
+      saveSnapshot(data);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [habits, earnings, expenses, sleep, journal, goals, competitors, pomodoro,
+      assets, liabilities, budget, subscriptions, portfolio, netWorthHistory,
+      fireSettings, userName, memento, lastBriefing, briefingSnapshot]);
 
   const handleSetName = () => {
     if (!nameInput.trim()) return;
     setUserName(nameInput.trim().toUpperCase());
     setShowNamePrompt(false);
+    if (lastBriefing !== today()) setBriefingOpen(true);
+  };
+
+  const dismissBriefing = (snap: BriefingSnapshot) => {
+    setBriefingSnapshot(snap);
+    setLastBriefing(today());
+    setBriefingOpen(false);
   };
 
   return (
@@ -117,13 +168,14 @@ export default function App() {
             pomodoro={pomodoro}
             userName={userName}
             onNavigate={p => setPage(p as Page)}
+            onOpenBriefing={() => setBriefingOpen(true)}
           />
         )}
         {page === 'habits' && (
           <HabitTracker habits={habits} onChange={setHabits} />
         )}
         {page === 'earnings' && (
-          <EarningsTracker earnings={earnings} onChange={setEarnings} />
+          <EarningsTracker earnings={earnings} onChange={setEarnings} expenses={expenses} onExpensesChange={setExpenses} />
         )}
         {page === 'sleep' && (
           <SleepTracker sleep={sleep} onChange={setSleep} />
@@ -141,13 +193,41 @@ export default function App() {
             earnings={earnings}
             goals={goals}
             pomodoro={pomodoro}
+            sleep={sleep}
+            journal={journal}
             myName={userName}
             onChange={setCompetitors}
             onUpdateMe={() => {}}
+            onChangeName={name => { setUserName(name); }}
           />
         )}
         {page === 'pomodoro' && (
           <PomodoroTimer sessions={pomodoro} onChange={setPomodoro} />
+        )}
+        {page === 'memento' && (
+          <MementoMori settings={memento} onChange={setMemento} onUnlockFlex={() => setFlexOpen(true)} />
+        )}
+        {page === 'wrapped' && (
+          <Wrapped
+            habits={habits}
+            earnings={earnings}
+            sleep={sleep}
+            journal={journal}
+            pomodoro={pomodoro}
+            userName={userName}
+          />
+        )}
+        {page === 'skyline' && (
+          <Skyline earnings={earnings} />
+        )}
+        {page === 'showroom' && (
+          <Suspense fallback={
+            <div style={{ textAlign: 'center', padding: 60, color: '#555', fontFamily: 'JetBrains Mono, monospace', fontSize: 12, letterSpacing: '0.1em' }}>
+              OPENING THE SHOWROOM…
+            </div>
+          }>
+            <Showroom goals={goals} earnings={earnings} />
+          </Suspense>
         )}
         {page === 'finance' && (
           <FinanceTracker
@@ -168,6 +248,44 @@ export default function App() {
           />
         )}
       </Layout>
+
+      {/* Morning War Briefing — full-screen daily takeover */}
+      {briefingOpen && !showNamePrompt && !booting && (
+        <WarBriefing
+          userName={userName}
+          habits={habits}
+          earnings={earnings}
+          goals={goals}
+          pomodoro={pomodoro}
+          sleep={sleep}
+          journal={journal}
+          competitors={competitors}
+          memento={memento}
+          previousSnapshot={briefingSnapshot}
+          onDismiss={dismissBriefing}
+        />
+      )}
+
+      {/* The Flex Room — hidden, unlocked by swiping up on the memento counter */}
+      {flexOpen && (
+        <FlexRoom
+          earnings={earnings}
+          pomodoro={pomodoro}
+          goals={goals}
+          onClose={() => setFlexOpen(false)}
+        />
+      )}
+
+      {/* Boot sequence — first paint on every app open */}
+      {booting && (
+        <BootSequence
+          userName={userName}
+          habits={habits}
+          earnings={earnings}
+          sleep={sleep}
+          onDone={() => setBooting(false)}
+        />
+      )}
     </>
   );
 }

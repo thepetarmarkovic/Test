@@ -64,6 +64,15 @@ export interface Achievement {
   icon: string;
 }
 
+export interface ExpenseEntry {
+  id: string;
+  amount: number;
+  description: string;
+  category: 'housing' | 'food' | 'transport' | 'subscriptions' | 'entertainment' | 'health' | 'business' | 'other';
+  date: string;
+  notes: string;
+}
+
 export interface CompetitorProfile {
   id: string;
   name: string;
@@ -76,7 +85,39 @@ export interface CompetitorProfile {
   weeklyPoints: number;
   achievements: Achievement[];
   isMe: boolean;
+  // Extended intel — identity
+  occupation?: string;
+  age?: number;
+  location?: string;
+  instagram?: string;
+  twitter?: string;
+  notes?: string;
+  // Financial
+  monthlyRevenue?: number;
+  monthlyExpenses?: number;
+  netWorth?: number;
+  // Schedule & habits
+  wakeTime?: string;
+  sleepTime?: string;
+  dailyActivities?: string[];   // e.g. ["Gym", "Cold shower", "Reading"]
+  // Performance
+  currentStreak?: number;
+  bestWeekPoints?: number;
+  allTimePoints?: number;
+  monthlyHabits?: number;
+  weeklyFocusHours?: number;
+  // Goals & mindset
+  currentGoals?: string;
+  strengths?: string;
+  weaknesses?: string;
+  // Points history for chart  { week: "2025-W01", points: 340 }
+  pointsHistory?: { week: string; points: number }[];
+  // Freeform custom key-value
+  customStats?: { label: string; value: string }[];
   lastSync?: string;
+  // Tracked weekly stats (synced via Firebase)
+  weeklyJournals?: number;
+  sleepScore?: number;  // avg quality 0-5 over last 7 days
 }
 
 export interface PomodoroSession {
@@ -152,4 +193,58 @@ export interface FireSettings {
   expectedReturn: number;
 }
 
-export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance';
+export type Page = 'dashboard' | 'habits' | 'earnings' | 'sleep' | 'journal' | 'goals' | 'competition' | 'pomodoro' | 'finance' | 'memento' | 'showroom' | 'wrapped' | 'skyline';
+
+export interface WrappedStats {
+  earnings: number;
+  habitCompletions: number;
+  focusHours: number;
+  journalEntries: number;
+  sleepScore: number;       // avg quality 0-5, 0 if none
+  activeDays: number;
+  biggestWin?: { amount: number; source: string; date: string };
+}
+
+export interface WrappedRecord {
+  id: string;                              // e.g. 'weekly-2026-06-29'
+  kind: 'weekly' | 'monthly' | 'yearly';
+  startDate: string;                       // inclusive ISO
+  endDate: string;                         // inclusive ISO
+  label: string;                           // human period label
+  stats: WrappedStats;
+  points: number;
+  createdAt: string;
+}
+
+export interface DivisionConfig {
+  key: string;
+  label: string;
+  state: 'active' | 'construction';
+  categories: EarningEntry['category'][];  // which revenue counts for this tower
+  floorValue: number;                      // $ per lit floor
+  maxFloors: number;
+}
+
+export type ExhibitKind = 'panamera' | 'motorcycle' | 'exitdoor';
+
+export interface ExhibitConfig {
+  id: string;
+  title: string;
+  kind: ExhibitKind;
+  target: number;                             // amount that means 100%
+  source: 'lifetime' | 'monthly' | 'goal';    // where progress is read from
+  goalId?: string;                            // when source === 'goal'
+  completedAt?: string;                       // set once, never removed
+  hasImage?: boolean;                         // photo stored in asset DB under exh-img-<id>
+  hasModel?: boolean;                         // .glb stored in asset DB under exh-glb-<id>
+}
+
+export interface MementoSettings {
+  birthDate: string;       // 'yyyy-mm-dd'
+  lifeExpectancy: number;  // years
+}
+
+export interface BriefingSnapshot {
+  date: string;
+  standings: { id: string; name: string; points: number }[];
+}

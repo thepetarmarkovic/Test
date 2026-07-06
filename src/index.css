@@ -260,6 +260,200 @@ body {
   50% { opacity: 0.3; }
 }
 
+/* Boot sequence */
+@keyframes bootFlicker {
+  0% { opacity: 0; }
+  8% { opacity: 0.9; }
+  12% { opacity: 0.1; }
+  20% { opacity: 1; }
+  26% { opacity: 0.4; }
+  34% { opacity: 1; }
+  42% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+@keyframes bootLine {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes bootScan {
+  from { top: -2px; }
+  to { top: 100%; }
+}
+
+@keyframes rotate360 {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes rotate360rev {
+  from { transform: rotate(360deg); }
+  to { transform: rotate(0deg); }
+}
+
+@keyframes bootFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Page content container */
+.page-pad {
+  padding: 32px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+/* Mobile drawer slide-in */
+@keyframes drawerIn {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+/* ---- Mobile responsiveness ---------------------------------------------
+   Components use inline style grids; the attribute selectors below collapse
+   fixed column counts on small screens (inline styles lose to !important). */
+@media (max-width: 768px) {
+  .page-pad { padding: 16px 12px 56px; }
+  .empire-card { padding: 14px; }
+  .modal-box {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: 88vh;
+    overflow-y: auto;
+  }
+  h1 { font-size: 23px !important; }
+  .stat-number { font-size: 32px; }
+
+  [style*="grid-template-columns: 1fr 1fr 1fr"],
+  [style*="grid-template-columns: 1fr 1fr"],
+  [style*="grid-template-columns: 2fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+  [style*="grid-template-columns: repeat(3, 1fr)"] {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  [style*="grid-template-columns: repeat(6, 1fr)"] {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  /* Page header rows (title + action buttons) wrap instead of overflowing */
+  .animate-fade-up > div:first-child,
+  .animate-fade-up > div:first-child > div {
+    flex-wrap: wrap;
+    row-gap: 12px;
+  }
+
+  /* Any space-between row (card headers with action buttons) may wrap */
+  [style*="justify-content: space-between"] {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Cards inside wrapping flex rows (dashboard stat tiles) get a sane
+     minimum width so they fall 2-up instead of squeezing into slivers */
+  [style*="flex-wrap: wrap"] > .empire-card {
+    min-width: 150px !important;
+  }
+}
+
+/* Vault hint — barely-there breathing chevron */
+@keyframes vaultHint {
+  0%, 100% { opacity: 0.35; transform: translateY(0); }
+  50% { opacity: 0.85; transform: translateY(-3px); }
+}
+.vault-hint { animation: vaultHint 3.2s ease-in-out infinite; }
+.vault-hint:hover { opacity: 1 !important; animation-play-state: paused; color: #D4AF37 !important; }
+
+/* Flex Room slow reveal */
+@keyframes flexFadeIn {
+  from { opacity: 0; filter: brightness(0.3); }
+  to { opacity: 1; filter: brightness(1); }
+}
+
+/* Empire Skyline ambience */
+@keyframes skyTwinkle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.15; }
+}
+.sky-twinkle { animation: skyTwinkle 4s ease-in-out infinite; }
+
+@keyframes skyCloud {
+  from { transform: translateX(-160px); }
+  to { transform: translateX(960px); }
+}
+.sky-cloud { animation: skyCloud 100s linear infinite; }
+
+@keyframes skyFlicker {
+  0%, 91%, 95%, 100% { opacity: 0.88; }
+  93% { opacity: 0.15; }
+}
+.sky-flicker { animation: skyFlicker 7s linear infinite; }
+
+/* Photo exhibit idle sway */
+@keyframes panelSway {
+  0%, 100% { transform: perspective(1100px) rotateY(-2.5deg) rotateX(0.5deg); }
+  50% { transform: perspective(1100px) rotateY(2.5deg) rotateX(-0.5deg); }
+}
+.animate-sway {
+  animation: panelSway 9s ease-in-out infinite;
+}
+
+/* Money ticker odometer */
+.odo-digit {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: top;
+  /* slot-reel edge fade */
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 76%, transparent 100%);
+  mask-image: linear-gradient(180deg, transparent 0%, #000 24%, #000 76%, transparent 100%);
+}
+.odo-strip {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Gold sheen sweeping across the big numbers.
+   NOTE: background-clip:text can't paint through the odometer's
+   transformed strips, so the sheen is a blend-mode overlay instead. */
+.money-glow {
+  position: relative;
+  color: #FFD700;
+}
+.money-glow::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  pointer-events: none;
+  background: linear-gradient(110deg, transparent 42%, rgba(255, 250, 220, 0.4) 50%, transparent 58%);
+  background-size: 260% 100%;
+  mix-blend-mode: soft-light;
+  animation: goldShimmer 6s ease-in-out infinite;
+}
+@keyframes goldShimmer {
+  0% { background-position: 130% 0; }
+  28% { background-position: -30% 0; }
+  100% { background-position: -30% 0; }
+}
+
+/* Glow flare when the cents advance */
+@keyframes centPulse {
+  0% { filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.35)); }
+  35% { filter: drop-shadow(0 0 20px rgba(255, 215, 0, 0.85)); }
+  100% { filter: drop-shadow(0 0 6px rgba(212, 175, 55, 0.35)); }
+}
+.cent-pulse {
+  animation: centPulse 0.45s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .money-glow::after, .cent-pulse { animation: none; }
+  .odo-strip { transition: none; }
+}
+
 .animate-fade-up {
   animation: fadeSlideUp 0.3s ease-out both;
 }
