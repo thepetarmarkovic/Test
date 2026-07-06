@@ -8,9 +8,9 @@ interface Props {
 }
 
 const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
-const SEC_30D = 30 * 86400;
+export const SEC_30D = 30 * 86400;
 
-function OdoChar({ ch }: { ch: string }) {
+export function OdoChar({ ch }: { ch: string }) {
   const d = DIGITS.indexOf(ch);
   if (d === -1) {
     return <span style={{ display: 'inline-block' }}>{ch}</span>;

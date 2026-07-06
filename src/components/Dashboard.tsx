@@ -7,6 +7,7 @@ import { TrendingUp, Flame, Moon, Target, Zap, ArrowUpRight, Sunrise } from 'luc
 import type { Habit, EarningEntry, SleepEntry, Goal, PomodoroSession } from '../types';
 import { formatCurrency, greetingByTime, getLast7Days, dayOfWeekShort, today } from '../utils/formatters';
 import MoneyTicker from './MoneyTicker';
+import LiveAccrual from './LiveAccrual';
 
 const QUOTES = [
   { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
@@ -127,8 +128,9 @@ export default function Dashboard({ habits, earnings, sleep, goals, pomodoro, us
         </button>
       </div>
 
-      {/* Live money counter */}
+      {/* Lifetime earned (frozen, real) + live accrual counter */}
       <MoneyTicker earnings={earnings} />
+      <LiveAccrual earnings={earnings} />
 
       {/* Quote */}
       <div
